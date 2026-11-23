@@ -1,0 +1,33 @@
+To,
+{{ pio_name }}
+{{ department }},
+{{ department_address }}
+
+
+Subject: Application under Right to Information Act, 2005
+
+Sir/Madam,
+
+I, {{ applicant_name }}, residing at {{ applicant_address }}{% if applicant_phone %}, Phone: {{ applicant_phone }}{% endif %}{% if applicant_email %}, Email: {{ applicant_email }}{% endif %}, being a citizen of India, hereby request the following information under Section 6(1) of the Right to Information Act, 2005:
+
+Subject: {{ subject }}
+
+Information requested:
+{{ information_requested }}
+{% if period %}
+Time period the information relates to: {{ period }}
+{% endif %}
+I am enclosing the prescribed fee of Rs. 10/- (Rupees Ten only) by way of Indian Postal Order / Court Fee Stamp / Online payment receipt.
+
+I would request you to provide the said information within the stipulated period of 30 days as per Section 7(1) of the RTI Act, 2005.
+
+In case the information is partly or fully denied, kindly provide the reasons for such denial along with the details of the Appellate Authority, as required under Section 7(8) of the Act.
+
+Thanking you,
+
+Yours faithfully,
+
+
+({{ applicant_name }})
+Date: _______________
+Place: _______________

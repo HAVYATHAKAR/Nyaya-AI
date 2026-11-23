@@ -1,0 +1,49 @@
+BEFORE THE {{ forum.upper() }} CONSUMER DISPUTES REDRESSAL COMMISSION
+
+CONSUMER COMPLAINT NO. ____ OF 20__
+
+IN THE MATTER OF:
+
+{{ complainant_name }},
+{{ complainant_address }}
+{% if complainant_phone %}Phone: {{ complainant_phone }}{% endif %}
+                                              ...Complainant
+
+VERSUS
+
+{{ opposite_party_name }},
+{{ opposite_party_address }}
+                                              ...Opposite Party
+
+COMPLAINT UNDER SECTION 35 OF THE CONSUMER PROTECTION ACT, 2019
+
+The Complainant respectfully submits as under:
+
+1. That the Complainant is a consumer as defined under Section 2(7) of the Consumer Protection Act, 2019.
+
+2. That on {{ purchase_date }}, the Complainant purchased {{ product_service }} from the Opposite Party for a sum of Rs. {{ amount_paid }}/{% if invoice_number %} vide Invoice No. {{ invoice_number }}{% endif %}.
+
+3. The grievance of the Complainant is as follows:
+{{ defect_grievance }}
+
+4. That the said act of the Opposite Party amounts to deficiency in service and/or unfair trade practice under the Consumer Protection Act, 2019.
+
+5. That the Complainant is seeking the following relief:
+{{ relief_sought }}
+
+6. That the total claim value of this complaint is Rs. {{ claim_value }}/-
+
+7. That this Hon'ble Forum has jurisdiction to entertain this complaint as the cause of action wholly/partly arose within its territorial jurisdiction.
+
+PRAYER:
+
+In the premises aforesaid, the Complainant most respectfully prays that this Hon'ble Forum may be pleased to:
+
+a) Allow the complaint;
+b) Direct the Opposite Party to grant the relief sought;
+c) Award compensation for mental harassment and litigation costs;
+d) Pass such other order(s) as this Forum may deem fit and proper in the facts and circumstances of the case.
+
+Place: _____________                                  ____________________
+Date:  _____________                                  ({{ complainant_name }})
+                                                       Complainant

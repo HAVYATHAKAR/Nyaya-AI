@@ -1,0 +1,35 @@
+# NyayaAI Backend — Python dependencies
+# Windows-compatible: uses >= instead of == for cross-platform availability
+
+# Web framework
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.7
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Database
+SQLAlchemy>=2.0.20
+alembic>=1.13.0
+
+# Auth
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.0.0
+passlib[bcrypt]>=1.7.4
+
+# OCR (optional — paddleocr is heavy, install separately if needed)
+# paddleocr>=2.7.0
+Pillow>=10.0.0
+
+# LLM + RAG
+huggingface_hub>=0.20.0
+qdrant-client>=1.7.0
+
+# Drafts
+Jinja2>=3.1.2
+
+# Utils
+python-dotenv>=1.0.0
+httpx>=0.25.0
+aiofiles>=23.0.0
+loguru>=0.7.0

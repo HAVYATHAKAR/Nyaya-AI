@@ -1,0 +1,10 @@
+{
+  "name": "nyayaai-backend",
+  "version": "0.1.0",
+  "description": "NyayaAI FastAPI backend (Python) managed as a bun mini-service",
+  "scripts": {
+    "dev": "bun run index.ts",
+    "start": "bun run index.ts"
+  },
+  "dependencies": {}
+}
