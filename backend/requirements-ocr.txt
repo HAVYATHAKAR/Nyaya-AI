@@ -1,0 +1,6 @@
+# Optional OCR runtime; PDF processing additionally requires system Poppler tools.
+-r requirements.txt
+paddleocr>=2.7.0
+paddlepaddle>=2.6.0
+pdf2image>=1.16.0
+Pillow>=10.0.0

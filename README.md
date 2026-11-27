@@ -1,8 +1,8 @@
 # NyayaAI — AI-Powered Legal Intelligence & Workflow Platform
 
-> Bridging citizens and justice through AI. An AI-powered platform that simplifies
-> Indian legal documents, answers legal questions with source citations, generates
-> personalized workflows, and drafts common legal documents.
+> Bridging citizens and justice through AI. A legal document and workflow platform.
+> Model-backed analysis depends on external configuration; legal Q&A remains disabled
+> until an authoritative, URL-cited source corpus is integrated.
 
 ![Status](https://img.shields.io/badge/status-MVP-yellow)
 ![Stack](https://img.shields.io/badge/stack-Next.js%20%2B%20FastAPI%20%2B%20Python-blue)
@@ -32,13 +32,13 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 
 ### What it does
 
-1. **Document Intelligence** — Upload any legal doc (notices, FIRs, contracts, property papers). PaddleOCR extracts text, AI classifies the doc type, summarizes it, explains jargon in plain language, extracts deadlines and key entities, and flags missing information.
+1. **Document Intelligence** — Upload supported PDF/image/TXT files. OCR and model-backed analysis run only when their dependencies and services are available; failures are surfaced as unavailable/failed rather than fabricated summaries. Regex dates are explicitly uncertain text matches.
 
-2. **AI Legal Assistant** — Ask natural-language legal questions ("How do I file an RTI?", "Which court handles consumer disputes?"). RAG retrieves verified legal context (RTI Act, Consumer Protection Act, IPC, etc.) and grounds every answer with source citations.
+2. **AI Legal Assistant** — The chat API only generates an answer when it has relevant, URL-cited legal references. The repository currently has no reviewed corpus or ingestion pipeline, so it returns an explicit insufficient-sources status instead of unsupported legal advice. Historical criminal-law sample text referencing the IPC has been excluded from runtime; no legal correction is asserted here pending authoritative, dated sources.
 
-3. **Workflow Generator** — Describe your situation and get a personalized step-by-step legal workflow with deadlines, priorities, a document checklist, and a "preparation score".
+3. **Workflow Generator** — The API returns validated model output when available, otherwise a clearly labeled template fallback; all timeframes are planning estimates, not legal deadlines.
 
-4. **Draft Generator** — Generate first drafts of common legal documents: RTI applications, consumer complaints, legal notices, affidavits, rental agreements. Each draft is watermarked as preliminary — review by an advocate is mandatory.
+4. **Draft Generator** — Render five text templates. Missing fields remain explicit placeholders, input values are escaped, and each draft carries a preliminary-only advocate-review disclaimer.
 
 ---
 
@@ -52,7 +52,7 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                     Caddy Reverse Proxy :81                       │
-│   Routes /api/*?XTransformPort=8000 → FastAPI :8000               │
+│   Routes /api/* → FastAPI :8000 (fixed upstream; client query cannot choose a port)               │
 │   Routes everything else            → Next.js :3000               │
 └──────────────────────────────────────────────────────────────────┘
                               │
@@ -69,9 +69,9 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 │  - Draft generator       │   │                                   │
 └──────────────────────────┘   │  Services:                        │
                                 │   - OCR (PaddleOCR)              │
-                                │   - LLM (HuggingFace Inference)  │
-                                │   - Embeddings (bge-small*)      │
-                                │   - Vector store (Qdrant Cloud)   │
+                                │   - LLM (HuggingFace Inference, optional token) │
+                                │   - Optional embeddings (not active without reviewed corpus) │
+                                │   - Local vector index (unused until reviewed corpus exists) │
                                 │   - Drafts (Jinja2 templates)    │
                                 │                                   │
                                 │  Storage:                         │
@@ -87,43 +87,40 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 | Frontend | Next.js 16, TypeScript, Tailwind CSS, shadcn/ui | Single-page tabbed app |
 | Backend | FastAPI (Python 3.12), SQLAlchemy, Pydantic v2 | Async, modular monolith |
 | Auth | JWT (python-jose) + bcrypt | Email + password |
-| OCR | PaddleOCR (multilingual) | Stub fallback for dev |
+| OCR | PaddleOCR (optional `requirements-ocr.txt`) | No filename stub; reports unavailable |
 | LLM | HuggingFace Inference API (free tier) | Llama-3 / Mistral / Gemma |
-| Embeddings | sentence-transformers + BAAI/bge-small-en-v1.5 | Hash-based fallback for dev |
-| Vector DB | Qdrant Cloud (free tier) | In-memory fallback for dev |
+| Embeddings | Optional sentence-transformers (`requirements-embeddings.txt`) | Disabled; no hash pseudo-embeddings |
+| Vector store | Process-local index | Qdrant configuration is not wired into runtime |
 | Drafts | Jinja2 templates | 5 templates shipped |
 | DB | SQLite (dev) / PostgreSQL (prod) | Easy swap via env var |
 
 ---
 
-## Modules Shipped (MVP v1)
+## Backend capabilities and availability
 
-### ✅ Module 1 — Document Intelligence
-- Upload PDF / PNG / JPG / TXT up to 20 MB
-- PaddleOCR extracts text (supports Indic scripts)
-- AI classifies doc type (legal notice, FIR, contract, etc.)
-- Generates summary, plain-language explanation
-- Extracts deadlines (LLM + regex fallback)
-- Identifies key entities (parties, amounts, sections, courts)
-- Flags missing information
-- Background async processing with status polling
+### Document Intelligence
+- Upload PDF / image / TXT up to the configured limit with streamed size checks and server-generated file paths
+- OCR and model analysis require their runtime dependencies and services; failures are surfaced rather than fabricated
+- Structured model responses are validated before saving
+- Regex date matches are explicitly uncertain and are not declared legal deadlines
+- OCR text remains available when OCR succeeds but model analysis is unavailable
+- Background processing reports status through the document endpoint
 
-### ✅ Module 2 — AI Legal Assistant (RAG)
+### AI Legal Assistant (currently source-gated)
 - Chat interface with conversation history
-- RAG retrieves from seeded KB (RTI Act, Consumer Protection Act, IPC, Easements Act, Rent Control, Industrial Disputes)
-- Every answer includes source citations with title + source + snippet
-- Conversational context (last 4 turns)
-- Fallback stub answer when LLM is unreachable (so demo always works)
+- Hash embeddings and the historical unverified sample KB are no longer used or served
+- Current API returns an explicit insufficient-sources result until a reviewed URL-cited corpus is integrated
+- No confident answer is generated from missing or unverified legal references
+- Retrieved passages in any future corpus must be reference data, not model instructions
 
-### ✅ Module 3 — Workflow Generator
+### Workflow Generator
 - Free-text description → structured workflow
 - Auto-detects case type or accepts hint
-- Generates 4-6 step action plan with deadlines + priorities
-- Personalized document checklist
-- Preparation score (0-100)
-- Fallback templates for property / consumer / RTI / generic
+- Validates model-generated step structure, values, and score bounds
+- Fallback templates are returned with `analysis_status: template_fallback`
+- Deadlines are labeled planning estimates, not legally binding dates
 
-### ✅ Module 4 — Draft Generator
+### Draft Generator
 - 5 templates shipped: RTI Application, Consumer Complaint, Legal Notice, Affidavit, Rental Agreement
 - Dynamic form fields per template
 - Watermarked as "preliminary — review by advocate"
@@ -149,7 +146,7 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env to set HF_TOKEN, QDRANT_URL, QDRANT_API_KEY (see below)
+# Edit .env to set HF_TOKEN and a strong production JWT_SECRET (see below)
 
 # Start the backend
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -170,7 +167,7 @@ Frontend will be at `http://localhost:3000`.
 ### 3. Try the demo
 
 Open `http://localhost:3000` and sign up with any email + password (min 6 chars).
-Or use the seeded demo account: `demo@nyayaai.in` / `demo123`.
+No demo account is seeded by the backend; create a new account instead.
 
 ---
 
@@ -210,21 +207,19 @@ Backend reads from `backend/.env`. Key settings:
 HF_TOKEN=hf_your_token_here
 HF_MODEL=meta-llama/Meta-Llama-3-8B-Instruct
 
-# Required for production RAG (free tier at qdrant.tech)
-QDRANT_URL=https://your-cluster.qdrant.tech
-QDRANT_API_KEY=your_key_here
+# Retained for compatibility only; the current runtime does not connect to Qdrant
 
 # Production database (SQLite works for dev)
 DATABASE_URL=postgresql://user:pass@host:5432/nyayaai
 
 # JWT secret — CHANGE THIS for production
-JWT_SECRET=use_a_long_random_string
+JWT_SECRET=generate-a-unique-random-secret-at-least-32-characters
 
 # OCR language
 OCR_LANG=en  # hi, ta, te, mr, bn, gu, pa, kn also supported
 ```
 
-Without these set, the app still runs in "demo mode" — RAG returns hash-based embeddings, LLM returns a stub answer, OCR returns the filename. This is intentional so judges can see the full pipeline even if external services are unavailable.
+Generate `JWT_SECRET` with a secure random generator (at least 32 characters) for production; known placeholders and weak repeated-character secrets are rejected. Set `CORS_ORIGINS` to exact origins, as a JSON array. Without `HF_TOKEN`, model-backed analysis is explicitly unavailable. OCR initialization failures and unreadable/empty OCR are reported as failed document processing; the filename is never treated as extracted text. Semantic retrieval is disabled by default, and the historical bundled legal sample corpus (including an IPC-era criminal-law passage) is not served. Qdrant variables are retained for compatibility but are not used by the current runtime. The current repository has no legal-corpus ingestion pipeline, so Q&A remains unavailable even if an embedding model is configured. A future corpus must be authoritative, reviewed, and include source URLs, jurisdiction, and update metadata before Q&A can be enabled. OCR packages are isolated in `backend/requirements-ocr.txt`; PDF OCR additionally requires system Poppler tools. Embedding packages are isolated in `backend/requirements-embeddings.txt`. `email-validator` is included for Pydantic `EmailStr`, and `psycopg[binary]` supports PostgreSQL URLs.
 
 ---
 
@@ -237,7 +232,7 @@ Without these set, the app still runs in "demo mode" — RAG returns hash-based 
 2. New Web Service on Render → connect repo
 3. Build command: `pip install -r backend/requirements.txt`
 4. Start command: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Add env vars (HF_TOKEN, QDRANT_URL, etc.)
+5. Add environment variables as required: strong JWT_SECRET and exact CORS_ORIGINS for production; HF_TOKEN enables model calls; Qdrant is not used by this backend
 6. Add Postgres database (free tier) → set DATABASE_URL
 
 #### Frontend (Next.js on Render or Vercel)

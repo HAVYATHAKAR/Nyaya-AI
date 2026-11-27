@@ -1,5 +1,6 @@
 """FastAPI application entrypoint."""
 from contextlib import asynccontextmanager
+import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -8,6 +9,58 @@ from .core.config import settings
 from .db.session import init_db
 from .api import auth, documents, chat, tools
 from .services.rag_service import seed_knowledge_base
+from .services.embed_service import embedding_service
+
+
+class UploadLimitMiddleware:
+    """Stop oversized upload bodies while ASGI is receiving them."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or scope.get("method") != "POST" or scope.get("path") != "/api/documents/upload":
+            await self.app(scope, receive, send)
+            return
+        max_bytes = settings.max_upload_mb * 1024 * 1024 + 256 * 1024
+        headers = dict(scope.get("headers", []))
+        try:
+            content_length = int(headers.get(b"content-length", b"0"))
+        except ValueError:
+            content_length = 0
+        if content_length > max_bytes:
+            await self._too_large(send)
+            return
+        received = 0
+        response_started = False
+
+        async def tracked_send(message):
+            nonlocal response_started
+            if message.get("type") == "http.response.start":
+                response_started = True
+            await send(message)
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            if message.get("type") == "http.request":
+                received += len(message.get("body", b""))
+                if received > max_bytes:
+                    raise ValueError("upload_body_too_large")
+            return message
+
+        try:
+            await self.app(scope, limited_receive, tracked_send)
+        except ValueError as exc:
+            if str(exc) != "upload_body_too_large" or response_started:
+                raise
+            await self._too_large(send)
+
+    @staticmethod
+    async def _too_large(send):
+        body = json.dumps({"detail": "Uploaded request exceeds the configured size limit"}).encode()
+        await send({"type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
 
 
 @asynccontextmanager
@@ -16,9 +69,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name} backend...")
     init_db()
     try:
-        seed_knowledge_base()
+        if embedding_service.available:
+            seed_knowledge_base()
     except Exception as e:
-        logger.warning(f"KB seeding skipped: {e}")
+        logger.warning("KB seeding skipped ({})", type(e).__name__)
     logger.info("Startup complete.")
     yield
     # Shutdown
@@ -32,12 +86,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(UploadLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list + ["*"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -66,7 +121,8 @@ async def health():
         "version": "0.1.0",
         "ocr_lang": settings.ocr_lang,
         "llm_model": settings.hf_model,
-        "kb_seeded": True,
+        "semantic_retrieval": "unavailable_no_verified_corpus",
+        "llm": "configured" if settings.hf_token else "unavailable_not_configured",
     }
 
 

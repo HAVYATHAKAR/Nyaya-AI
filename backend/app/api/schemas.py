@@ -1,7 +1,7 @@
 """Pydantic schemas for API request/response validation."""
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Literal
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator, model_validator
 
 
 # ===== Auth =====
@@ -11,10 +11,24 @@ class UserCreate(BaseModel):
     name: Optional[str] = None
     role: str = "citizen"
 
+    @field_validator("password")
+    @classmethod
+    def bcrypt_password_limit(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must not exceed bcrypt's 72-byte limit")
+        return value
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def bcrypt_password_limit(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must not exceed bcrypt's 72-byte limit")
+        return value
 
 
 class UserOut(BaseModel):
@@ -59,8 +73,8 @@ class ChatCreate(BaseModel):
 
 
 class ChatMessageCreate(BaseModel):
-    chat_id: str
-    content: str
+    chat_id: str = Field(min_length=1, max_length=80)
+    content: str = Field(min_length=1, max_length=12000)
 
 
 class ChatMessageOut(BaseModel):
@@ -70,6 +84,11 @@ class ChatMessageOut(BaseModel):
     sources: Optional[List[Any]]
     created_at: datetime
     model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def analysis_status(self) -> str:
+        return "unavailable" if self.content.startswith("[ANSWER UNAVAILABLE]") else "available"
 
 
 class ChatOut(BaseModel):
@@ -88,32 +107,40 @@ class ChatAnswer(BaseModel):
 # ===== Workflow =====
 class WorkflowRequest(BaseModel):
     """Generate a workflow based on document or case description."""
-    document_id: Optional[str] = None
-    description: Optional[str] = None
-    case_type_hint: Optional[str] = None
+    document_id: Optional[str] = Field(default=None, max_length=80)
+    description: Optional[str] = Field(default=None, max_length=12000)
+    case_type_hint: Optional[str] = Field(default=None, max_length=50)
+
+    @model_validator(mode="after")
+    def require_context(self):
+        if not (self.description and self.description.strip()) and not self.document_id:
+            raise ValueError("Provide a description or document_id")
+        return self
 
 
 class WorkflowStep(BaseModel):
-    step: int
-    title: str
-    description: str
-    deadline_days: Optional[int] = None
-    priority: str = "medium"  # high|medium|low
+    step: int = Field(ge=1, le=100)
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=4000)
+    deadline_days: Optional[int] = Field(default=None, ge=0, le=3650)
+    priority: Literal["high", "medium", "low"] = "medium"
 
 
 class WorkflowOut(BaseModel):
-    case_type: str
-    summary: str
+    analysis_status: str = "available"
+    deadline_notice: str = "Generated timeframes are planning estimates, not legally binding deadlines."
+    case_type: Literal["property_dispute", "consumer_grievance", "employment_issue", "family_matter", "criminal", "tax_dispute", "rti_application", "civil_suit", "other"]
+    summary: str = Field(min_length=1, max_length=4000)
     steps: List[WorkflowStep]
     checklist: List[str]
-    prep_score: int = 0
+    prep_score: int = Field(default=0, ge=0, le=100)
 
 
 # ===== Drafts =====
 class DraftCreate(BaseModel):
-    draft_type: str  # rti|complaint|notice|affidavit|rental_agreement
-    title: str
-    fields: dict   # template variables
+    draft_type: str = Field(min_length=1, max_length=50)
+    title: str = Field(min_length=1, max_length=200)
+    fields: dict = Field(max_length=50)
 
 
 class DraftOut(BaseModel):

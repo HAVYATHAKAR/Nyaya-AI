@@ -34,10 +34,11 @@ async def create_workflow(
             .filter(Document.id == payload.document_id, Document.user_id == current_user.id)
             .first()
         )
-        if doc:
-            doc_context = (doc.ocr_text or "")[:3000]
-            if doc.doc_type:
-                case_type_hint = case_type_hint or doc.doc_type
+        if not doc:
+            raise HTTPException(404, "Document not found")
+        doc_context = (doc.ocr_text or "")[:3000]
+        if doc.doc_type:
+            case_type_hint = case_type_hint or doc.doc_type
 
     description = payload.description or "(based on uploaded document)"
     workflow = await generate_workflow(
@@ -67,8 +68,8 @@ def create_draft(
         content = generate_draft(payload.draft_type, payload.fields)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    except Exception as e:
-        raise HTTPException(500, f"Draft generation failed: {e}")
+    except Exception:
+        raise HTTPException(500, "Draft generation failed")
 
     draft = DraftDocument(
         user_id=current_user.id,

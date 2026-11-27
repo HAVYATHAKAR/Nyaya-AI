@@ -1,0 +1,3 @@
+# Optional real semantic model; legal Q&A still requires a verified, URL-cited corpus.
+-r requirements.txt
+sentence-transformers>=2.6.0

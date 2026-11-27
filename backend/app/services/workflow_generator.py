@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 
 from .llm_service import llm_service
+from ..api.schemas import WorkflowOut
 
 
 WORKFLOW_PROMPT = """You are NyayaAI's workflow planner. Based on the case description and any
@@ -190,11 +191,13 @@ async def generate_workflow(
                 raw = raw[:-3]
         data = __import__("json").loads(raw.strip())
         # Ensure required keys exist
-        data.setdefault("case_type", case_type_hint or "other")
-        data.setdefault("steps", [])
-        data.setdefault("checklist", [])
-        data.setdefault("prep_score", 0)
-        return data
+        data["analysis_status"] = "available"
+        data["deadline_notice"] = "Generated timeframes are planning estimates, not legally binding deadlines."
+        validated = WorkflowOut.model_validate(data)
+        return validated.model_dump()
     except Exception as e:
-        logger.warning(f"Workflow generation failed ({e}); using fallback.")
-        return pick_fallback(case_type_hint or "other")
+        logger.warning("Workflow generation unavailable or invalid ({})", type(e).__name__)
+        fallback = dict(pick_fallback(case_type_hint or "other"))
+        fallback["analysis_status"] = "template_fallback"
+        fallback["deadline_notice"] = "Template timeframes are illustrative planning estimates, not legal deadlines. Verify requirements with an advocate or authoritative source."
+        return WorkflowOut.model_validate(fallback).model_dump()
