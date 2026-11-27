@@ -1,6 +1,7 @@
 """Draft generator: Jinja2 templates for common Indian legal documents."""
 from pathlib import Path
 from typing import Dict, Any
+from html import escape
 from loguru import logger
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -122,19 +123,29 @@ def generate_draft(template_key: str, fields: Dict[str, Any]) -> str:
         raise ValueError(f"Unknown template: {template_key}")
 
     tmpl_info = TEMPLATES[template_key]
+    allowed = {field["name"] for field in tmpl_info["fields"]}
+    if not isinstance(fields, dict):
+        raise ValueError("Draft fields must be an object")
+    if set(fields) - allowed:
+        raise ValueError("Unknown draft fields supplied")
     template = env.get_template(tmpl_info["file"])
 
     # Fill missing fields with placeholders so the user sees what to complete
     final_fields = {}
     for f in tmpl_info["fields"]:
-        val = fields.get(f["name"], "").strip() if isinstance(fields.get(f["name"]), str) else fields.get(f["name"], "")
+        val = fields.get(f["name"], "")
+        if val is not None and not isinstance(val, (str, int, float)):
+            raise ValueError(f"Invalid value for {f['label']}")
+        val = str(val).strip()[:4000] if val is not None else ""
         if not val:
             if f.get("required"):
                 final_fields[f["name"]] = f"<<FILL: {f['label']}>>"
             else:
                 final_fields[f["name"]] = ""
         else:
-            final_fields[f["name"]] = val
+            # These are plain-text templates; HTML-escape user data before it is
+            # returned to clients that might render the result in an HTML view.
+            final_fields[f["name"]] = escape(val, quote=True)
 
     rendered = template.render(**final_fields)
 

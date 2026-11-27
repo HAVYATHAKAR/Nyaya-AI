@@ -19,7 +19,8 @@ def signup(payload: UserCreate, db: Session = Depends(get_db)):
     user = User(
         email=payload.email,
         name=payload.name,
-        role=payload.role or "citizen",
+        # Public signup must never be able to grant privileged roles.
+        role="citizen",
         hashed_password=hash_password(payload.password),
     )
     db.add(user)

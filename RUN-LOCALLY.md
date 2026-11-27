@@ -137,11 +137,11 @@ Open http://localhost:3000 → you'll see the NyayaAI login page.
 
 1. Click **"Create Account"** tab
 2. Enter any email (e.g. `you@example.com`) + password (min 6 chars)
-3. Or use the seeded demo account: `demo@nyayaai.in` / `demo123`
+3. No demo account is seeded; create a new account instead.
 
 You'll see 4 tabs:
-- **Documents** — upload PDF/PNG/JPG, watch AI analysis (may take 20-30s)
-- **AI Assistant** — chat with RAG (asks legal questions, gets cited answers)
+- **Documents** — upload supported files; OCR/model analysis depends on configured runtime services and reports unavailable failures
+- **AI Assistant** — Q&A remains unavailable until a reviewed URL-cited legal corpus and real retrieval pipeline are integrated
 - **Workflow** — describe your case, get a step-by-step plan
 - **Drafts** — generate RTI / Consumer Complaint / Legal Notice / Affidavit / Rental Agreement
 
@@ -158,13 +158,13 @@ You'll see 4 tabs:
    HF_TOKEN=hf_your_token_here
    HF_MODEL=mistralai/Mistral-7B-Instruct-v0.3
    ```
-4. Stop the backend (Ctrl+C) and restart it. Chat answers will now come from Mistral-7B.
+4. Stop the backend (Ctrl+C) and restart it. Model-backed workflows/document analysis can then call the configured provider; legal Q&A remains disabled without a verified source corpus.
 
 ### Real OCR (optional, ~500 MB)
 
 ```powershell
 .\venv\Scripts\Activate.ps1
-pip install paddleocr paddlepaddle
+pip install -r requirements-ocr.txt
 ```
 
 Edit `backend/.env`:
@@ -172,16 +172,11 @@ Edit `backend/.env`:
 OCR_LANG=hi    # or: en, ta, te, mr, bn, gu, pa, kn
 ```
 
-### Real RAG with Qdrant Cloud (free)
+### Legal Q&A / retrieval status
 
-1. Sign up at https://qdrant.tech → Create free cluster → Get URL + API key
-2. Edit `backend/.env`:
-   ```
-   QDRANT_URL=https://your-cluster.qdrant.tech
-   QDRANT_API_KEY=your_key_here
-   ```
-3. (Optional) Replace `backend/app/services/embed_service.py` with the
-   sentence-transformers version (see commented code in that file).
+The backend does not currently connect to Qdrant and does not ship an authoritative legal corpus ingestion pipeline. Configuring Qdrant variables alone will not activate retrieval. The API returns an explicit insufficient-sources response until reviewed legal sources, citation URLs, jurisdiction/update metadata, and a real retrieval implementation are integrated.
+
+Historical sample criminal-law text referencing the IPC has been removed from the served corpus; this change does not assert a legal correction. Consult authoritative, current sources before legal use.
 
 ---
 

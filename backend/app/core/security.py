@@ -12,9 +12,8 @@ from .config import settings
 def hash_password(plain: str) -> str:
     """Hash a password using bcrypt directly (avoids passlib compat issues)."""
     pwd_bytes = plain.encode("utf-8")
-    # bcrypt has a 72-byte limit; truncate safely
     if len(pwd_bytes) > 72:
-        pwd_bytes = pwd_bytes[:72]
+        raise ValueError("Password exceeds bcrypt's 72-byte limit")
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
@@ -23,7 +22,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     try:
         pwd_bytes = plain.encode("utf-8")
         if len(pwd_bytes) > 72:
-            pwd_bytes = pwd_bytes[:72]
+            return False
         return bcrypt.checkpw(pwd_bytes, hashed.encode("utf-8"))
     except Exception:
         return False

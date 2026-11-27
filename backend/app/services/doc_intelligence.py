@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from loguru import logger
 
-from .llm_service import llm_service
+from .llm_service import llm_service, LLMUnavailable
 
 
 # Document type taxonomy
@@ -68,38 +68,22 @@ Document text:
 
 
 async def analyze_document(ocr_text: str) -> Dict[str, Any]:
-    """Run the full document analysis pipeline. Returns structured fields."""
+    """Analyze readable text; unavailable AI never becomes plausible legal content."""
     if not ocr_text or len(ocr_text.strip()) < 20:
-        return {
-            "doc_type": "unknown",
-            "summary": "Document is too short or OCR failed to extract text.",
-            "plain_explanation": "",
-            "deadlines": [],
-            "key_entities": [],
-            "missing_info": ["Could not extract readable text from the document."],
-        }
-
-    # Truncate to keep prompts manageable
+        return {"analysis_status": "unavailable_ocr", "analysis_message": "Insufficient readable text; no legal analysis was generated."}
     snippet = ocr_text[:6000]
-
-    # 1. Classify doc type (fast, single call)
-    doc_type, case_type_hint = await _classify_doc_type(snippet)
-
-    # 2. Full analysis
-    analysis = await _full_analysis(snippet)
-
-    # 3. Merge
-    analysis["doc_type"] = doc_type
-    analysis["case_type_hint"] = case_type_hint
-    analysis.setdefault("deadlines", [])
-    analysis.setdefault("key_entities", [])
-    analysis.setdefault("missing_info", [])
-
-    # 4. Try to extract deadlines with regex as a backup
-    if not analysis["deadlines"]:
-        analysis["deadlines"] = _regex_deadlines(snippet)
-
-    return analysis
+    try:
+        doc_type, case_type_hint = await _classify_doc_type(snippet)
+        analysis = await _full_analysis(snippet)
+        analysis["doc_type"] = doc_type
+        analysis["case_type_hint"] = case_type_hint
+        if not analysis.get("deadlines"):
+            analysis["deadlines"] = _regex_deadlines(snippet)
+        analysis["analysis_status"] = "available"
+        return analysis
+    except Exception as exc:
+        logger.warning("Document analysis unavailable ({})", type(exc).__name__)
+        return {"analysis_status": "unavailable_model", "analysis_message": "AI analysis unavailable or invalid; no legal analysis was generated."}
 
 
 async def _classify_doc_type(text: str) -> tuple[str, str]:
@@ -113,12 +97,13 @@ async def _classify_doc_type(text: str) -> tuple[str, str]:
         if raw.startswith("json"):
             raw = raw[4:].strip()
         data = json.loads(raw)
-        return (
-            data.get("doc_type", "other"),
-            data.get("case_type_hint", "other"),
-        )
+        doc_type = data.get("doc_type")
+        case_type = data.get("case_type_hint")
+        if doc_type not in DOC_TYPES or not isinstance(case_type, str) or len(case_type) > 40:
+            raise ValueError("Invalid classification schema")
+        return doc_type, case_type
     except Exception as e:
-        logger.warning(f"Doc classification failed: {e}")
+        logger.warning("Doc classification failed ({})", type(e).__name__)
         # Heuristic fallback
         lower = text.lower()
         if "fir" in lower or "first information report" in lower:
@@ -134,31 +119,25 @@ async def _classify_doc_type(text: str) -> tuple[str, str]:
 
 async def _full_analysis(text: str) -> Dict[str, Any]:
     prompt = ANALYSIS_PROMPT.format(doc_text=text)
-    messages = [{"role": "user", "content": prompt}]
-    try:
-        raw = await llm_service.chat(
-            messages, max_new_tokens=800, temperature=0.2
-        )
-        # Strip markdown fences if present
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-        raw = raw.strip()
-        data = json.loads(raw)
-        return data
-    except Exception as e:
-        logger.warning(f"Full analysis failed: {e}")
-        return {
-            "summary": f"Document analyzed. Could not parse full structured response (LLM error: {e}).",
-            "plain_explanation": "Please review the document manually or retry analysis.",
-            "deadlines": [],
-            "key_entities": [],
-            "missing_info": ["Automated analysis incomplete — please review manually."],
-        }
+    raw = await llm_service.chat([{"role": "user", "content": prompt}], max_new_tokens=800, temperature=0.2)
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1].removeprefix("json").strip()
+    data = json.loads(raw)
+    required = {"summary": str, "plain_explanation": str, "deadlines": list,
+                "key_entities": list, "missing_info": list}
+    if not isinstance(data, dict) or any(not isinstance(data.get(key), typ) for key, typ in required.items()):
+        raise ValueError("Invalid analysis schema")
+    data["deadlines"] = [item for item in data["deadlines"] if isinstance(item, dict) and
+                         set(item).issuperset({"date", "description"}) and
+                         isinstance(item.get("description"), str)][:20]
+    data["key_entities"] = [item for item in data["key_entities"] if isinstance(item, dict) and
+                            isinstance(item.get("type"), str) and isinstance(item.get("label"), str) and
+                            isinstance(item.get("value"), str)][:50]
+    data["missing_info"] = [item for item in data["missing_info"] if isinstance(item, str)][:30]
+    data["summary"] = data["summary"][:4000]
+    data["plain_explanation"] = data["plain_explanation"][:8000]
+    return data
 
 
 # Common date formats in Indian legal docs
@@ -178,7 +157,7 @@ def _regex_deadlines(text: str) -> List[Dict[str, str]]:
             start = max(0, m.start() - 80)
             end = min(len(text), m.end() + 80)
             context = text[start:end].replace("\n", " ").strip()
-            deadlines.append({"date": m.group(1), "description": f"Date found near: …{context}…"})
+            deadlines.append({"date": m.group(1), "description": f"Unverified date found in text (not a confirmed legal deadline): …{context}…", "confidence": "uncertain"})
     # Dedupe by date
     seen = set()
     out = []
