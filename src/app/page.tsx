@@ -1,9 +1,21 @@
 'use client';
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowUpRight, BookOpen, Check, ChevronRight, Clipboard, Clock3, Copy, FileCheck2,
+  FileText, FolderOpen, Gavel, Grid2X2, Info, Loader2, LogOut, Menu, MessageCircle,
+  MoreHorizontal, Plus, Scale, Send, Sparkles, Upload, WandSparkles, X,
+} from "lucide-react";
 import { api, type User, type DocumentItem, type Chat, type ChatMessage, type ChatStatus, type Workflow, type DraftTemplate, type Draft } from "@/lib/api";
 
 type Tab = "documents" | "chat" | "workflow" | "drafts";
+
+const tabs: { key: Tab; label: string; icon: typeof FileText; eyebrow: string }[] = [
+  { key: "documents", label: "Documents", icon: FileText, eyebrow: "Review & understand" },
+  { key: "chat", label: "Assistant", icon: MessageCircle, eyebrow: "Ask with context" },
+  { key: "workflow", label: "Workflows", icon: WandSparkles, eyebrow: "Plan next steps" },
+  { key: "drafts", label: "Drafts", icon: Clipboard, eyebrow: "Prepare with care" },
+];
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -14,924 +26,86 @@ export default function Home() {
   const [name, setName] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
 
-  // Restore session
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("nyayaai_token") : null;
-    if (token) {
-      api.me().then(setUser).catch(() => {
-        localStorage.removeItem("nyayaai_token");
-        setUser(null);
-      });
-    }
+    const token = localStorage.getItem("nyayaai_token");
+    if (token) api.me().then(setUser).catch(() => { api.logout(); setUser(null); });
   }, []);
 
-  const handleAuth = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError(null);
+  const handleAuth = useCallback(async (event: React.FormEvent) => {
+    event.preventDefault(); setAuthLoading(true); setAuthError(null);
     try {
-      const res = authMode === "login"
-        ? await api.login(email, password)
-        : await api.signup(email, password, name || undefined);
-      localStorage.setItem("nyayaai_token", res.access_token);
-      setUser(res.user);
-    } catch (err: any) {
-      setAuthError(err.message || "Authentication failed");
-    } finally {
-      setAuthLoading(false);
-    }
+      const result = authMode === "login" ? await api.login(email, password) : await api.signup(email, password, name || undefined);
+      localStorage.setItem("nyayaai_token", result.access_token); setUser(result.user);
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Authentication failed"); }
+    finally { setAuthLoading(false); }
   }, [authMode, email, password, name]);
 
-  const handleLogout = useCallback(() => {
-    api.logout();
-    setUser(null);
-    setEmail("");
-    setPassword("");
-    setName("");
-  }, []);
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-stone-200 p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-serif font-bold text-stone-800">NyayaAI</h1>
-            <p className="text-sm text-stone-500 mt-2">AI-Powered Legal Intelligence for India</p>
-          </div>
-
-          <div className="flex border-b border-stone-200 mb-6">
-            <button
-              onClick={() => setAuthMode("login")}
-              className={`flex-1 py-2 text-sm font-medium ${authMode === "login" ? "text-stone-900 border-b-2 border-stone-900" : "text-stone-500"}`}
-            >Sign In</button>
-            <button
-              onClick={() => setAuthMode("signup")}
-              className={`flex-1 py-2 text-sm font-medium ${authMode === "signup" ? "text-stone-900 border-b-2 border-stone-900" : "text-stone-500"}`}
-            >Create Account</button>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            {authMode === "signup" && (
-              <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:border-stone-900"
-                  placeholder="Your name"
-                />
-              </div>
-            )}
-            <div>
-              <label className="block text-xs font-medium text-stone-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:border-stone-900"
-                placeholder="you@example.com"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-stone-700 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:border-stone-900"
-                placeholder="At least 6 characters"
-              />
-            </div>
-            {authError && (
-              <div className="text-sm text-red-700 bg-red-50 p-2 rounded border border-red-200">{authError}</div>
-            )}
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full py-2.5 bg-stone-900 text-white text-sm font-medium rounded hover:bg-stone-800 disabled:opacity-50"
-            >
-              {authLoading ? "Please wait…" : authMode === "login" ? "Sign In" : "Create Account"}
-            </button>
-          </form>
-
-        </div>
-      </div>
-    );
-  }
+  if (!user) return <AuthScreen mode={authMode} setMode={setAuthMode} email={email} setEmail={setEmail} password={password} setPassword={setPassword} name={name} setName={setName} error={authError} loading={authLoading} onSubmit={handleAuth} />;
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-[#f7f5ef] text-[#17231d]">
+      <header className="sticky top-0 z-30 border-b border-[#dfe2d8] bg-[#f7f5ef]/95 backdrop-blur">
+        <div className="mx-auto flex max-w-[1480px] items-center justify-between px-5 py-4 lg:px-10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-stone-900 rounded flex items-center justify-center">
-              <span className="text-white font-serif font-bold text-sm">N</span>
-            </div>
-            <div>
-              <h1 className="font-serif font-bold text-lg text-stone-900">NyayaAI</h1>
-              <p className="text-[10px] text-stone-500 -mt-0.5">Legal Intelligence Platform</p>
-            </div>
+            <button className="rounded-lg p-2 hover:bg-[#e9ece3] lg:hidden" aria-label="Open navigation" onClick={() => setMobileNav(!mobileNav)}><Menu size={20} /></button>
+            <img src="/logo.svg" alt="NyayaAI" className="h-9 w-9 rounded-xl" />
+            <div><div className="font-serif text-xl font-semibold tracking-[-0.03em]">NyayaAI</div><div className="hidden text-[10px] uppercase tracking-[0.2em] text-[#728074] sm:block">Legal intelligence, made clear</div></div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-stone-900">{user.name || user.email}</p>
-              <p className="text-[10px] text-stone-500 capitalize">{user.role}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="text-xs text-stone-600 hover:text-stone-900 border border-stone-300 px-3 py-1.5 rounded"
-            >Sign Out</button>
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right sm:block"><div className="text-sm font-medium">{user.name || user.email}</div><div className="text-[11px] text-[#788579]">Personal workspace</div></div>
+            <button onClick={() => { api.logout(); setUser(null); }} className="flex items-center gap-2 rounded-full border border-[#d7dbd0] bg-white px-3 py-2 text-xs font-semibold transition hover:border-[#9da99b]"><LogOut size={14} /> <span className="hidden sm:inline">Sign out</span></button>
           </div>
-        </div>
-        {/* Tabs */}
-        <div className="max-w-7xl mx-auto px-6 flex gap-1">
-          {([
-            ["documents", "Documents"],
-            ["chat", "AI Assistant"],
-            ["workflow", "Workflow"],
-            ["drafts", "Drafts"],
-          ] as [Tab, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                tab === key
-                  ? "border-stone-900 text-stone-900"
-                  : "border-transparent text-stone-500 hover:text-stone-800"
-              }`}
-            >{label}</button>
-          ))}
         </div>
       </header>
 
-      {/* Main */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-6">
-        {tab === "documents" && <DocumentsPanel />}
-        {tab === "chat" && <ChatPanel />}
-        {tab === "workflow" && <WorkflowPanel />}
-        {tab === "drafts" && <DraftsPanel />}
-      </main>
-
-      <footer className="border-t border-stone-200 bg-white py-3 text-center text-xs text-stone-500">
-        NyayaAI — Preliminary legal assistance. Always consult a qualified advocate for legal advice.
-      </footer>
+      <div className="mx-auto flex max-w-[1480px]">
+        <aside className={`${mobileNav ? "fixed inset-0 z-20 block bg-[#f7f5ef] p-5 pt-24" : "hidden"} w-72 shrink-0 border-r border-[#dfe2d8] lg:sticky lg:top-[74px] lg:block lg:h-[calc(100vh-74px)] lg:p-6`}>
+          <div className="mb-8 flex items-center justify-between lg:hidden"><span className="text-xs font-bold uppercase tracking-[0.2em] text-[#728074]">Workspace</span><button onClick={() => setMobileNav(false)} aria-label="Close navigation"><X size={19} /></button></div>
+          <div className="mb-4 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#829085]">Workspace</div>
+          <nav className="space-y-1" aria-label="Main navigation">
+            {tabs.map(({ key, label, icon: Icon, eyebrow }) => <button key={key} onClick={() => { setTab(key); setMobileNav(false); }} className={`nav-item ${tab === key ? "nav-item-active" : ""}`}><Icon size={18} strokeWidth={tab === key ? 2.2 : 1.8} /><span className="flex-1 text-left"><b>{label}</b><small>{eyebrow}</small></span>{tab === key && <ChevronRight size={15} />}</button>)}
+          </nav>
+          <div className="mt-10 rounded-2xl border border-[#dfe2d8] bg-[#eef0e8] p-4"><div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-[#315441] text-[#e4d9b7]"><Scale size={16} /></div><p className="text-sm font-semibold">A careful starting point</p><p className="mt-1 text-xs leading-relaxed text-[#647166]">NyayaAI prepares information for your next conversation with a qualified advocate.</p></div>
+          <div className="mt-5 flex items-start gap-2 px-2 text-[11px] leading-relaxed text-[#829085]"><Info size={13} className="mt-0.5 shrink-0" />Generated content is preliminary and should be reviewed before use.</div>
+        </aside>
+        <main className="min-w-0 flex-1 px-5 py-8 lg:px-12 lg:py-10">
+          <div className="mb-9 flex flex-wrap items-end justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[#9a7f3f]"><span className="h-px w-6 bg-[#9a7f3f]" />Your workspace</div><h1 className="font-serif text-4xl font-medium tracking-[-0.04em] sm:text-5xl">Good to see you<span className="text-[#9a7f3f]">.</span></h1><p className="mt-3 max-w-xl text-sm leading-relaxed text-[#718074]">Make sense of complex legal information, one considered step at a time.</p></div><div className="hidden items-center gap-2 rounded-full border border-[#dfe2d8] bg-white/70 px-3 py-2 text-xs text-[#718074] sm:flex"><span className="status-dot" /> Workspace ready</div></div>
+          {tab === "documents" && <DocumentsPanel />}
+          {tab === "chat" && <ChatPanel />}
+          {tab === "workflow" && <WorkflowPanel />}
+          {tab === "drafts" && <DraftsPanel />}
+        </main>
+      </div>
+      <footer className="border-t border-[#dfe2d8] px-5 py-5 text-center text-[11px] text-[#829085]">NyayaAI is an information and preparation tool, not a substitute for professional legal advice.</footer>
     </div>
   );
 }
 
-// ===== Documents Panel =====
+function AuthScreen({ mode, setMode, email, setEmail, password, setPassword, name, setName, error, loading, onSubmit }: { mode: "login" | "signup"; setMode: (mode: "login" | "signup") => void; email: string; setEmail: (value: string) => void; password: string; setPassword: (value: string) => void; name: string; setName: (value: string) => void; error: string | null; loading: boolean; onSubmit: (event: React.FormEvent) => void }) {
+  return <div className="min-h-screen bg-[#315441] p-5 text-[#17231d] sm:p-10"><div className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-6xl overflow-hidden rounded-[2rem] bg-[#f7f5ef] shadow-2xl lg:grid-cols-[1.05fr_.95fr]"><div className="relative hidden overflow-hidden bg-[#203e2d] p-12 text-[#f7f5ef] lg:flex lg:flex-col lg:justify-between"><div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-[#d6c897]/20" /><div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full border border-[#d6c897]/20" /><div className="relative"><div className="mb-16 flex items-center gap-3"><img src="/logo.svg" alt="" className="h-10 w-10 rounded-xl" /><span className="font-serif text-2xl">NyayaAI</span></div><div className="max-w-md"><p className="mb-5 text-xs font-bold uppercase tracking-[0.25em] text-[#d6c897]">A calmer way forward</p><h1 className="font-serif text-6xl leading-[0.95] tracking-[-0.06em]">Clarity for the legal road ahead.</h1><p className="mt-7 max-w-sm text-sm leading-relaxed text-[#b9c7b9]">Understand your documents, map your next steps, and prepare better questions for your advocate.</p></div></div><div className="relative flex items-center gap-3 text-xs text-[#b9c7b9]"><span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#d6c897]/40 text-[#d6c897]">01</span> Built for India · designed for clarity</div></div><div className="flex items-center justify-center p-7 sm:p-12"><div className="w-full max-w-md"><div className="mb-10 lg:hidden"><img src="/logo.svg" alt="NyayaAI" className="mb-5 h-11 w-11 rounded-xl" /><div className="font-serif text-3xl">NyayaAI</div></div><p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#9a7f3f]">Private workspace</p><h2 className="font-serif text-4xl tracking-[-0.04em]">{mode === "login" ? "Welcome back." : "Start with clarity."}</h2><p className="mt-3 text-sm text-[#718074]">{mode === "login" ? "Sign in to continue your preparation." : "Create an account to keep your work together."}</p><div className="mt-8 flex gap-6 border-b border-[#dfe2d8]"><button onClick={() => setMode("login")} className={`auth-tab ${mode === "login" ? "auth-tab-active" : ""}`}>Sign in</button><button onClick={() => setMode("signup")} className={`auth-tab ${mode === "signup" ? "auth-tab-active" : ""}`}>Create account</button></div><form onSubmit={onSubmit} className="mt-7 space-y-5">{mode === "signup" && <Field label="Full name"><input value={name} onChange={e => setName(e.target.value)} className="input" placeholder="Your name" /></Field>}<Field label="Email"><input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="input" placeholder="you@example.com" /></Field><Field label="Password"><input required minLength={6} type="password" value={password} onChange={e => setPassword(e.target.value)} className="input" placeholder="At least 6 characters" /></Field>{error && <div className="rounded-xl border border-[#e4b9ad] bg-[#fff1ed] px-4 py-3 text-sm text-[#9b4737]" role="alert">{error}</div>}<button disabled={loading} className="primary-button w-full">{loading ? <><Loader2 size={16} className="animate-spin" /> Please wait</> : <>{mode === "login" ? "Enter workspace" : "Create workspace"}<ArrowUpRight size={16} /></>}</button></form><p className="mt-7 text-center text-[11px] leading-relaxed text-[#8b978c]">By continuing, you acknowledge that NyayaAI provides preliminary information only.</p></div></div></div></div>;
+}
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-2 block text-xs font-semibold text-[#526156]">{label}</span>{children}</label>; }
+function SectionHeader({ icon: Icon, kicker, title, description, action }: { icon: typeof FileText; kicker: string; title: string; description: string; action?: React.ReactNode }) { return <div className="mb-6 flex flex-wrap items-start justify-between gap-4"><div className="flex gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#e6eadf] text-[#315441]"><Icon size={20} /></div><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#9a7f3f]">{kicker}</p><h2 className="mt-1 font-serif text-2xl tracking-[-0.03em]">{title}</h2><p className="mt-1 max-w-xl text-sm text-[#718074]">{description}</p></div></div>{action}</div>; }
+function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) { return <section className={`panel ${className}`}>{children}</section>; }
+function EmptyState({ icon: Icon, title, body }: { icon: typeof FileText; title: string; body: string }) { return <div className="empty-state"><div className="empty-icon"><Icon size={21} /></div><h3 className="font-serif text-xl">{title}</h3><p className="mt-2 max-w-sm text-sm leading-relaxed text-[#788579]">{body}</p></div>; }
+function StatusBadge({ status }: { status: string }) { const tone = status === "analyzed" ? "green" : status === "failed" ? "red" : status === "processing" ? "gold" : "neutral"; return <span className={`badge badge-${tone}`}>{status}</span>; }
+
 function DocumentsPanel() {
-  const [docs, setDocs] = useState<DocumentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await api.listDocuments();
-      setDocs(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    // Poll for status updates while any doc is "processing"
-    const interval = setInterval(() => {
-      setDocs(prev => {
-        if (prev.some(d => d.status === "processing")) {
-          refresh();
-        }
-        return prev;
-      });
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [refresh]);
-
-  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      await api.uploadDocument(file);
-      await refresh();
-    } catch (err: any) {
-      alert(`Upload failed: ${err.message}`);
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  }, [refresh]);
-
+  const [docs, setDocs] = useState<DocumentItem[]>([]); const [loading, setLoading] = useState(true); const [uploading, setUploading] = useState(false); const [selectedId, setSelectedId] = useState<string | null>(null); const [notice, setNotice] = useState<string | null>(null);
+  const refresh = useCallback(async () => { setLoading(true); try { const items = await api.listDocuments(); setDocs(items); if (!selectedId && items[0]) setSelectedId(items[0].id); } catch (error) { setNotice(error instanceof Error ? error.message : "Could not load documents"); } finally { setLoading(false); } }, [selectedId]);
+  useEffect(() => { const timer = window.setTimeout(() => { void refresh(); }, 0); return () => window.clearTimeout(timer); }, [refresh]);
+  useEffect(() => { const id = setInterval(() => { if (docs.some(d => d.status === "processing")) refresh(); }, 3500); return () => clearInterval(id); }, [docs, refresh]);
+  const upload = async (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file) return; setUploading(true); setNotice(null); try { const item = await api.uploadDocument(file); setDocs(prev => [item, ...prev]); setSelectedId(item.id); setNotice("Document uploaded. Processing will appear here."); } catch (error) { setNotice(error instanceof Error ? error.message : "Upload failed"); } finally { setUploading(false); event.target.value = ""; } };
   const selected = docs.find(d => d.id === selectedId);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-1">
-        <div className="bg-white border border-stone-200 rounded p-4">
-          <h2 className="font-medium text-stone-900 mb-3">Upload Document</h2>
-          <label className="block border-2 border-dashed border-stone-300 rounded p-6 text-center cursor-pointer hover:border-stone-900 transition-colors">
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg,.txt"
-              onChange={handleUpload}
-              disabled={uploading}
-              className="hidden"
-            />
-            {uploading ? (
-              <p className="text-sm text-stone-600">Uploading…</p>
-            ) : (
-              <>
-                <p className="text-sm text-stone-600">Click to upload</p>
-                <p className="text-xs text-stone-400 mt-1">PDF, PNG, JPG, TXT up to 20MB</p>
-              </>
-            )}
-          </label>
-        </div>
-
-        <div className="mt-4">
-          <h3 className="font-medium text-stone-900 mb-2 text-sm">Your Documents</h3>
-          {loading ? (
-            <p className="text-sm text-stone-500">Loading…</p>
-          ) : docs.length === 0 ? (
-            <p className="text-sm text-stone-500">No documents yet. Upload one to get started.</p>
-          ) : (
-            <div className="space-y-2">
-              {docs.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => setSelectedId(d.id)}
-                  className={`w-full text-left p-3 border rounded text-sm ${selectedId === d.id ? "border-stone-900 bg-stone-50" : "border-stone-200 bg-white hover:border-stone-400"}`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-stone-900 truncate">{d.filename}</span>
-                    <StatusBadge status={d.status} />
-                  </div>
-                  {d.doc_type && (
-                    <p className="text-xs text-stone-500 capitalize">{d.doc_type.replace(/_/g, " ")}</p>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="lg:col-span-2">
-        {selected ? (
-          <DocumentDetail doc={selected} onReanalyze={refresh} />
-        ) : (
-          <div className="bg-white border border-stone-200 rounded p-8 text-center text-stone-500">
-            Select a document to view its AI analysis
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <><SectionHeader icon={FolderOpen} kicker="Document intelligence" title="Your documents" description="Upload a document and turn dense legal language into a clearer starting point." /><div className="grid gap-5 xl:grid-cols-[330px_1fr]"><div className="space-y-5"><Panel><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">Add a document</h3><Upload size={17} className="text-[#9a7f3f]" /></div><label className="upload-zone"><input type="file" accept=".pdf,.png,.jpg,.jpeg,.txt" onChange={upload} disabled={uploading} className="sr-only" />{uploading ? <Loader2 className="animate-spin text-[#315441]" /> : <div className="upload-mark"><Upload size={19} /></div>}<span className="mt-3 text-sm font-semibold">{uploading ? "Uploading…" : "Choose a file"}</span><span className="mt-1 text-xs text-[#829085]">PDF, PNG, JPG, or TXT · up to 20MB</span></label>{notice && <p className="mt-4 rounded-xl bg-[#eef0e8] px-3 py-2 text-xs text-[#536657]" role="status">{notice}</p>}</Panel><Panel><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">Recent files</h3><span className="count-pill">{docs.length}</span></div>{loading ? <div className="space-y-3"><div className="skeleton" /><div className="skeleton" /></div> : docs.length === 0 ? <p className="text-sm leading-relaxed text-[#829085]">Your uploaded documents will appear here.</p> : <div className="space-y-2">{docs.map(doc => <button key={doc.id} onClick={() => setSelectedId(doc.id)} className={`file-row ${selectedId === doc.id ? "file-row-active" : ""}`}><FileText size={16} className="shrink-0 text-[#9a7f3f]" /><span className="min-w-0 flex-1 text-left"><b className="block truncate text-sm">{doc.filename}</b><small>{doc.doc_type?.replaceAll("_", " ") || "Document"}</small></span><StatusBadge status={doc.status} /></button>)}</div>}</Panel></div><Panel className="min-h-[480px]">{selected ? <DocumentDetail doc={selected} refresh={refresh} /> : <EmptyState icon={FileCheck2} title="Select a document" body="Choose a file from the list to see its analysis, detected details, and OCR text." />}</Panel></div></>;
 }
+function DocumentDetail({ doc, refresh }: { doc: DocumentItem; refresh: () => void }) { const [section, setSection] = useState("summary"); const [busy, setBusy] = useState(false); const sections = [["summary", "Overview"], ["explanation", "Plain English"], ["deadlines", "Dates"], ["entities", "Entities"], ["raw", "OCR text"]]; const reanalyze = async () => { setBusy(true); try { await api.reanalyze(doc.id); refresh(); } finally { setBusy(false); } }; return <div><div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><div className="mb-2 flex items-center gap-2"><FileText size={16} className="text-[#9a7f3f]" /><span className="text-xs font-semibold text-[#718074]">{doc.file_type || "Uploaded file"}</span><StatusBadge status={doc.status} /></div><h3 className="font-serif text-2xl tracking-[-0.03em]">{doc.filename}</h3><p className="mt-1 text-xs text-[#829085]">Added {new Date(doc.created_at).toLocaleString()}</p></div><button disabled={busy} onClick={reanalyze} className="secondary-button">{busy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Re-analyze</button></div>{doc.status === "processing" && <div className="notice notice-gold"><Clock3 size={16} /> Analysis in progress. This may take a moment.</div>}{doc.status === "failed" && <div className="notice notice-red"><Info size={16} /> Analysis unavailable: {doc.error || "The service could not complete this document."}</div>}<div className="subtabs">{sections.map(([key, label]) => <button key={key} onClick={() => setSection(key)} className={section === key ? "subtab-active" : ""}>{label}</button>)}</div><div className="min-h-[230px] pt-5 text-sm leading-7 text-[#526156]">{section === "summary" && <p>{doc.summary || "No summary is available yet."}</p>}{section === "explanation" && <p>{doc.plain_explanation || "No plain-language explanation is available yet."}</p>}{section === "deadlines" && (doc.deadlines?.length ? <div className="space-y-3">{doc.deadlines.map((item: any, i: number) => <div className="detail-row" key={i}><Clock3 size={16} /><div><b>{item.date || "Date not specified"}</b><p>{item.description}</p></div></div>)}</div> : <EmptyInline text="No dates detected in this document." />)}{section === "entities" && (doc.key_entities?.length ? <div className="grid gap-3 sm:grid-cols-2">{doc.key_entities.map((item: any, i: number) => <div className="detail-row" key={i}><span className="entity-label">{item.type}</span><div><b>{item.label}</b><p>{item.value}</p></div></div>)}</div> : <EmptyInline text="No key entities extracted." />)}{section === "raw" && <pre className="max-h-80 overflow-auto rounded-xl bg-[#f1f2ed] p-4 font-mono text-xs leading-6 whitespace-pre-wrap">{doc.ocr_text || "No OCR text available."}</pre>}</div>{doc.missing_info?.length > 0 && <div className="notice notice-gold mt-5"><Info size={16} /><div><b>Information to look for</b><ul className="mt-1 list-disc pl-4">{doc.missing_info.map((item: string, i: number) => <li key={i}>{item}</li>)}</ul></div></div>}</div>; }
+function EmptyInline({ text }: { text: string }) { return <div className="rounded-xl border border-dashed border-[#dfe2d8] p-8 text-center text-[#829085]">{text}</div>; }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    uploaded: "bg-stone-100 text-stone-700",
-    processing: "bg-amber-100 text-amber-800",
-    analyzed: "bg-green-100 text-green-800",
-    failed: "bg-red-100 text-red-800",
-  };
-  return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded ${colors[status] || colors.uploaded}`}>
-      {status}
-    </span>
-  );
-}
+function ChatPanel() { const [chats, setChats] = useState<Chat[]>([]); const [current, setCurrent] = useState<string | null>(null); const [messages, setMessages] = useState<ChatMessage[]>([]); const [input, setInput] = useState(""); const [sending, setSending] = useState(false); const [status, setStatus] = useState<ChatStatus | null>(null); const [notice, setNotice] = useState<string | null>(null); const refresh = useCallback(async () => { try { const result = await api.listChats(); setChats(result); if (!current && result[0]) setCurrent(result[0].id); } catch (e) { setNotice(e instanceof Error ? e.message : "Could not load conversations"); } }, [current]); useEffect(() => { const timer = window.setTimeout(() => { void refresh(); }, 0); api.chatStatus().then(setStatus).catch(e => setNotice(e.message)); return () => window.clearTimeout(timer); }, [refresh]); useEffect(() => { const timer = window.setTimeout(() => { if (current) { void api.getChat(current).then(chat => setMessages(chat.messages)).catch(e => setNotice(e.message)); } else { setMessages([]); } }, 0); return () => window.clearTimeout(timer); }, [current]); const newChat = async () => { try { const chat = await api.createChat("New conversation"); setCurrent(chat.id); setMessages([]); refresh(); } catch (e) { setNotice(e instanceof Error ? e.message : "Could not create conversation"); } }; const send = async () => { if (!input.trim() || sending) return; const content = input.trim(); setInput(""); setSending(true); try { let id = current; if (!id) { const chat = await api.createChat("New conversation"); id = chat.id; setCurrent(id); } setMessages(prev => [...prev, { id: `tmp-${Date.now()}`, role: "user", content, sources: [], analysis_status: "available", created_at: new Date().toISOString() }]); const response = await api.sendMessage(id, content); setMessages(prev => [...prev, response]); refresh(); } catch (e) { setNotice(e instanceof Error ? e.message : "Message failed"); } finally { setSending(false); } }; return <><SectionHeader icon={MessageCircle} kicker="Grounded assistance" title="Ask with context" description="Explore your legal questions. Availability and citations are always shown plainly." action={<button className="primary-button" onClick={newChat}><Plus size={16} /> New conversation</button>} /><div className="grid gap-5 xl:grid-cols-[280px_1fr]"><Panel className="h-[620px] overflow-y-auto"><div className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#829085]">Conversations</div>{chats.length === 0 ? <p className="text-sm text-[#829085]">No conversations yet.</p> : <div className="space-y-1">{chats.map(chat => <button key={chat.id} onClick={() => setCurrent(chat.id)} className={`file-row ${current === chat.id ? "file-row-active" : ""}`}><MessageCircle size={15} /><span className="truncate text-left text-sm">{chat.title}</span></button>)}</div>}</Panel><Panel className="flex h-[620px] flex-col p-0"><div className="border-b border-[#e5e7df] px-5 py-4"><div className="flex items-center gap-2 text-sm font-semibold"><span className="status-dot" /> Legal Assistant</div><div className="mt-1 text-xs text-[#829085]">Answers are limited to reviewed official sources.</div></div><div className="flex-1 space-y-4 overflow-y-auto p-5">{messages.length === 0 && <EmptyState icon={BookOpen} title="Start with a question" body="Ask about a document, a process, or what to prepare next." />}{messages.map(message => <div key={message.id} className={`message ${message.role === "user" ? "message-user" : "message-assistant"}`}><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] opacity-60">{message.role === "user" ? "You" : "NyayaAI"}</div><div className="whitespace-pre-wrap">{message.content}</div>{message.analysis_status !== "available" && <div className="mt-3 rounded-lg bg-[#fff5d7] px-3 py-2 text-xs text-[#795f21]">{message.analysis_status.replaceAll("_", " ")}</div>}{message.sources?.length > 0 && <div className="mt-4 border-t border-current/15 pt-3 text-xs"><div className="mb-2 font-semibold">Official references</div>{message.sources.map((source, i) => <a key={i} href={source.url} target="_blank" rel="noreferrer" className="mb-2 block rounded-lg bg-black/5 p-2 hover:bg-black/10"><b>{source.title}, section {source.section}</b><span className="mt-1 flex items-center gap-1 opacity-70">Open India Code source <ArrowUpRight size={11} /></span></a>)}</div>}</div>)}{sending && <div className="message message-assistant"><Loader2 size={15} className="animate-spin" /> Thinking…</div>}</div><div className="border-t border-[#e5e7df] p-4">{notice && <div className="mb-3 text-xs text-[#9b4737]">{notice}</div>}{status && <div className="mb-3 rounded-lg bg-[#f1f2ed] px-3 py-2 text-xs text-[#637263]">Assistant status: {status.message}</div>}<div className="flex gap-2"><input className="input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") send(); }} placeholder="Ask a legal question…" disabled={sending} /><button className="primary-button px-4" onClick={send} disabled={sending || !input.trim()} aria-label="Send message"><Send size={16} /></button></div></div></Panel></div></>; }
 
-function DocumentDetail({ doc, onReanalyze }: { doc: DocumentItem; onReanalyze: () => void }) {
-  const [section, setSection] = useState<"summary" | "explanation" | "deadlines" | "entities" | "raw">("summary");
-  return (
-    <div className="bg-white border border-stone-200 rounded p-5">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <h2 className="font-medium text-stone-900">{doc.filename}</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            {doc.doc_type ? doc.doc_type.replace(/_/g, " ") : "uncategorized"} ·
-            {" "}{new Date(doc.created_at).toLocaleString()}
-          </p>
-        </div>
-        <button
-          onClick={() => api.reanalyze(doc.id).then(onReanalyze)}
-          className="text-xs border border-stone-300 px-2 py-1 rounded hover:bg-stone-100"
-        >Re-analyze</button>
-      </div>
+function WorkflowPanel() { const [description, setDescription] = useState(""); const [hint, setHint] = useState(""); const [workflow, setWorkflow] = useState<Workflow | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null); const [checked, setChecked] = useState<Record<number, boolean>>({}); const generate = async () => { if (!description.trim()) return; setLoading(true); setError(null); try { setWorkflow(await api.generateWorkflow({ description: description.trim(), case_type_hint: hint || undefined })); } catch (e) { setError(e instanceof Error ? e.message : "Workflow generation failed"); } finally { setLoading(false); } }; return <><SectionHeader icon={WandSparkles} kicker="Preparation planner" title="Build a considered next step" description="Describe what happened. NyayaAI will organize the practical preparation path without presenting estimates as legal deadlines." /><div className="grid gap-5 xl:grid-cols-[.85fr_1.15fr]"><Panel><div className="mb-5 rounded-2xl bg-[#eef0e8] p-4"><div className="flex gap-3"><Sparkles size={18} className="mt-0.5 text-[#9a7f3f]" /><p className="text-sm leading-relaxed text-[#536657]">The more context you share, the more useful the preparation plan can be.</p></div></div><Field label="What happened?"><textarea className="input min-h-44 resize-y" value={description} onChange={e => setDescription(e.target.value)} placeholder="For example: I received a notice from my landlord asking me to vacate in 7 days…" /></Field><Field label="Case type (optional)"><select className="input bg-white" value={hint} onChange={e => setHint(e.target.value)}><option value="">Auto-detect</option><option value="property_dispute">Property dispute</option><option value="consumer_grievance">Consumer grievance</option><option value="employment_issue">Employment issue</option><option value="family_matter">Family matter</option><option value="rti_application">RTI application</option><option value="civil_suit">Civil suit</option></select></Field>{error && <div className="notice notice-red mt-4"><Info size={15} /> {error}</div>}<button className="primary-button mt-5 w-full" disabled={loading || !description.trim()} onClick={generate}>{loading ? <><Loader2 size={16} className="animate-spin" /> Building plan…</> : <><WandSparkles size={16} /> Generate preparation plan</>}</button></Panel><Panel className="min-h-[500px]">{!workflow ? <EmptyState icon={Grid2X2} title="Your plan will appear here" body="You’ll see a summary, preparation score, suggested steps, and a checklist." /> : <div><div className="mb-6 border-b border-[#e5e7df] pb-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9a7f3f]">{workflow.case_type.replaceAll("_", " ")}</p><h3 className="mt-2 font-serif text-2xl">A practical path forward</h3><p className="mt-2 text-sm leading-relaxed text-[#637263]">{workflow.summary}</p><div className="mt-5 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-[#e6eadf]"><div className="h-full rounded-full bg-[#315441] transition-all" style={{ width: `${workflow.prep_score}%` }} /></div><span className="text-sm font-semibold">{workflow.prep_score}% ready</span></div></div><div className="space-y-3">{workflow.steps.map(step => <div className="step-card" key={step.step}><div className="step-number">{step.step}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><b>{step.title}</b><span className={`badge badge-${step.priority === "high" ? "red" : step.priority === "medium" ? "gold" : "neutral"}`}>{step.priority}</span></div><p className="mt-1 text-sm leading-relaxed text-[#637263]">{step.description}</p>{step.deadline_days && <span className="mt-2 inline-flex items-center gap-1 text-xs text-[#829085]"><Clock3 size={12} /> Planning estimate: {step.deadline_days} days</span>}</div></div>)}</div><div className="mt-7"><p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#829085]">Preparation checklist</p><div className="space-y-2">{workflow.checklist.map((item, i) => <label key={i} className={`check-row ${checked[i] ? "check-row-done" : ""}`}><input type="checkbox" checked={!!checked[i]} onChange={e => setChecked(prev => ({ ...prev, [i]: e.target.checked }))} /><span>{item}</span></label>)}</div></div></div>}</Panel></div></>; }
 
-      {doc.status === "processing" && (
-        <div className="bg-amber-50 border border-amber-200 p-3 rounded text-sm text-amber-900 mb-4">
-          Analyzing document… this may take 20-30 seconds.
-        </div>
-      )}
-      {doc.status === "failed" && (
-        <div className="bg-red-50 border border-red-200 p-3 rounded text-sm text-red-900 mb-4">
-          Analysis failed: {doc.error}
-        </div>
-      )}
-
-      <div className="flex gap-1 mb-4 border-b border-stone-200 overflow-x-auto">
-        {([
-          ["summary", "Summary"],
-          ["explanation", "Plain English"],
-          ["deadlines", "Deadlines"],
-          ["entities", "Entities"],
-          ["raw", "OCR Text"],
-        ] as [typeof section, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setSection(key)}
-            className={`px-3 py-1.5 text-xs font-medium border-b-2 whitespace-nowrap ${
-              section === key ? "border-stone-900 text-stone-900" : "border-transparent text-stone-500"
-            }`}
-          >{label}</button>
-        ))}
-      </div>
-
-      {section === "summary" && (
-        <div className="text-sm text-stone-700 leading-relaxed">{doc.summary || "No summary available yet."}</div>
-      )}
-      {section === "explanation" && (
-        <div className="text-sm text-stone-700 leading-relaxed">{doc.plain_explanation || "No plain-language explanation available yet."}</div>
-      )}
-      {section === "deadlines" && (
-        doc.deadlines?.length ? (
-          <ul className="space-y-2">
-            {doc.deadlines.map((d, i) => (
-              <li key={i} className="border border-stone-200 rounded p-3 text-sm">
-                <div className="font-medium text-stone-900">{d.date || "No date"}</div>
-                <div className="text-stone-600 mt-1">{d.description}</div>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="text-sm text-stone-500">No deadlines detected.</p>
-      )}
-      {section === "entities" && (
-        doc.key_entities?.length ? (
-          <div className="space-y-2">
-            {doc.key_entities.map((e, i) => (
-              <div key={i} className="flex items-start gap-3 border border-stone-200 rounded p-3 text-sm">
-                <span className="text-xs px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 uppercase">{e.type}</span>
-                <div>
-                  <div className="font-medium text-stone-900">{e.label}</div>
-                  <div className="text-stone-600">{e.value}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-sm text-stone-500">No key entities extracted.</p>
-      )}
-      {section === "raw" && (
-        <pre className="text-xs text-stone-700 whitespace-pre-wrap font-mono bg-stone-50 p-3 rounded max-h-96 overflow-y-auto">
-          {doc.ocr_text || "No OCR text available."}
-        </pre>
-      )}
-
-      {doc.missing_info && doc.missing_info.length > 0 && (
-        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-sm">
-          <p className="font-medium text-amber-900 mb-1">Missing information detected:</p>
-          <ul className="list-disc list-inside text-amber-800">
-            {doc.missing_info.map((m, i) => <li key={i}>{m}</li>)}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ===== Chat Panel =====
-function ChatPanel() {
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const [loadingChats, setLoadingChats] = useState(true);
-  const [chatStatus, setChatStatus] = useState<ChatStatus | null>(null);
-  const [chatStatusError, setChatStatusError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.chatStatus().then(setChatStatus).catch((e: Error) => setChatStatusError(e.message));
-  }, []);
-
-  const refreshChats = useCallback(async () => {
-    setLoadingChats(true);
-    try {
-      const data = await api.listChats();
-      setChats(data);
-      if (data.length > 0 && !currentChatId) {
-        setCurrentChatId(data[0].id);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingChats(false);
-    }
-  }, [currentChatId]);
-
-  useEffect(() => { refreshChats(); }, []);
-
-  useEffect(() => {
-    if (!currentChatId) {
-      setMessages([]);
-      return;
-    }
-    api.getChat(currentChatId).then(c => setMessages(c.messages)).catch(console.error);
-  }, [currentChatId]);
-
-  const handleSend = useCallback(async () => {
-    if (!input.trim() || sending) return;
-    const content = input.trim();
-    setInput("");
-
-    if (!currentChatId) {
-      try {
-        const newChat = await api.createChat("New conversation");
-        setCurrentChatId(newChat.id);
-        await refreshChats();
-        // Now send the message
-        const msg = await api.sendMessage(newChat.id, content);
-        setMessages(prev => [...prev,
-          { id: "tmp-user", role: "user", content, sources: [], created_at: new Date().toISOString() },
-          msg,
-        ]);
-      } catch (e: any) {
-        alert(`Failed: ${e.message}`);
-      } finally {
-        setSending(false);
-      }
-      return;
-    }
-
-    setMessages(prev => [...prev, { id: "tmp-user", role: "user", content, sources: [], created_at: new Date().toISOString() }]);
-    setSending(true);
-    try {
-      const msg = await api.sendMessage(currentChatId, content);
-      setMessages(prev => [...prev, msg]);
-    } catch (e: any) {
-      alert(`Failed: ${e.message}`);
-    } finally {
-      setSending(false);
-    }
-  }, [input, currentChatId, sending, refreshChats]);
-
-  const handleNewChat = useCallback(async () => {
-    try {
-      const newChat = await api.createChat("New conversation");
-      setCurrentChatId(newChat.id);
-      setMessages([]);
-      await refreshChats();
-    } catch (e: any) {
-      alert(`Failed: ${e.message}`);
-    }
-  }, [refreshChats]);
-
-  const handleDeleteChat = useCallback(async (id: string) => {
-    if (!confirm("Delete this conversation?")) return;
-    try {
-      await api.deleteChat(id);
-      if (currentChatId === id) {
-        setCurrentChatId(null);
-        setMessages([]);
-      }
-      await refreshChats();
-    } catch (e: any) {
-      alert(`Failed: ${e.message}`);
-    }
-  }, [currentChatId, refreshChats]);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[calc(100vh-200px)]">
-      {/* Chat list */}
-      <div className="lg:col-span-1 bg-white border border-stone-200 rounded p-3 overflow-y-auto">
-        <button
-          onClick={handleNewChat}
-          className="w-full mb-3 py-2 bg-stone-900 text-white text-sm rounded hover:bg-stone-800"
-        >+ New Conversation</button>
-        {loadingChats ? (
-          <p className="text-sm text-stone-500">Loading…</p>
-        ) : chats.length === 0 ? (
-          <p className="text-sm text-stone-500">No conversations yet.</p>
-        ) : (
-          <div className="space-y-1">
-            {chats.map(c => (
-              <div
-                key={c.id}
-                className={`group flex items-center justify-between px-2 py-1.5 rounded text-sm cursor-pointer ${
-                  currentChatId === c.id ? "bg-stone-100" : "hover:bg-stone-50"
-                }`}
-                onClick={() => setCurrentChatId(c.id)}
-              >
-                <span className="truncate flex-1">{c.title}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDeleteChat(c.id); }}
-                  className="opacity-0 group-hover:opacity-100 text-xs text-stone-500 hover:text-red-600 ml-2"
-                >×</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Messages */}
-      <div className="lg:col-span-3 bg-white border border-stone-200 rounded flex flex-col">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center text-stone-500 mt-12">
-              <p className="text-sm">Ask a legal question to get started.</p>
-            </div>
-          ) : messages.map(m => (
-            <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] ${m.role === "user" ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-900"} rounded-lg p-3 text-sm whitespace-pre-wrap`}>
-                {m.role === "assistant" && m.analysis_status && m.analysis_status !== "available" && (
-                  <p className="mb-2 text-xs font-semibold text-amber-800" role="status">
-                    {m.analysis_status.replaceAll("_", " ")}
-                  </p>
-                )}
-                {m.content}
-                {m.sources && m.sources.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-stone-300 space-y-2">
-                    <p className="text-xs font-medium opacity-80">Official references:</p>
-                    {m.sources.map((s, i) => (
-                      <div key={`${s.source_id}-${s.section}-${i}`} className="text-xs bg-white/10 p-2 rounded break-words">
-                        <p className="font-medium">{s.title}, section {s.section}</p>
-                        <p className="opacity-70 mt-0.5">{s.law_id} · {s.jurisdiction} · reviewed {s.reviewed_at}</p>
-                        {isIndiaCodeUrl(s.url) ? (
-                          <a className="mt-1 inline-block underline underline-offset-2" href={s.url} target="_blank" rel="noopener noreferrer">
-                            Open official source
-                          </a>
-                        ) : <p className="mt-1">Official source link unavailable</p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {chatStatusError ? (
-            <p className="mx-4 mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
-              Could not check legal Q&amp;A availability: {chatStatusError}
-            </p>
-          ) : chatStatus ? (
-            <p className={`mx-4 mt-3 rounded border p-3 text-sm ${chatStatus.analysis_status === "available" ? "border-green-200 bg-green-50 text-green-900" : "border-amber-200 bg-amber-50 text-amber-900"}`} role="status">
-              Legal Q&amp;A: {chatStatus.message}
-            </p>
-          ) : null}
-          {sending && (
-            <div className="flex justify-start">
-              <div className="bg-stone-100 rounded-lg p-3 text-sm text-stone-500">
-                <span className="inline-block animate-pulse">●●●</span> AI is thinking…
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-stone-200 p-3 flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Ask a legal question…"
-            className="flex-1 px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:border-stone-900"
-            disabled={sending}
-          />
-          <button
-            onClick={handleSend}
-            disabled={sending || !input.trim()}
-            className="px-4 py-2 bg-stone-900 text-white text-sm rounded hover:bg-stone-800 disabled:opacity-50"
-          >Send</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function isIndiaCodeUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "indiacode.gov.in";
-  } catch {
-    return false;
-  }
-}
-
-// ===== Workflow Panel =====
-function WorkflowPanel() {
-  const [description, setDescription] = useState("");
-  const [caseTypeHint, setCaseTypeHint] = useState("");
-  const [workflow, setWorkflow] = useState<Workflow | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleGenerate = useCallback(async () => {
-    if (!description.trim()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const w = await api.generateWorkflow({
-        description: description.trim(),
-        case_type_hint: caseTypeHint || undefined,
-      });
-      setWorkflow(w);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [description, caseTypeHint]);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="bg-white border border-stone-200 rounded p-4">
-        <h2 className="font-medium text-stone-900 mb-3">Describe Your Situation</h2>
-        <p className="text-xs text-stone-500 mb-4">
-          Tell us what happened. We&apos;ll generate a personalized step-by-step legal workflow.
-        </p>
-        <label className="block text-xs font-medium text-stone-700 mb-1">Case Description</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={6}
-          className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:border-stone-900"
-          placeholder="e.g., I received a legal notice from my landlord asking me to vacate my rented apartment in 7 days. What should I do?"
-        />
-
-        <label className="block text-xs font-medium text-stone-700 mb-1 mt-3">Case Type (optional)</label>
-        <select
-          value={caseTypeHint}
-          onChange={(e) => setCaseTypeHint(e.target.value)}
-          className="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white"
-        >
-          <option value="">Auto-detect</option>
-          <option value="property_dispute">Property Dispute</option>
-          <option value="consumer_grievance">Consumer Grievance</option>
-          <option value="employment_issue">Employment Issue</option>
-          <option value="family_matter">Family Matter</option>
-          <option value="criminal">Criminal</option>
-          <option value="tax_dispute">Tax Dispute</option>
-          <option value="rti_application">RTI Application</option>
-          <option value="civil_suit">Civil Suit</option>
-        </select>
-
-        {error && <p className="text-sm text-red-700 mt-3">{error}</p>}
-
-        <button
-          onClick={handleGenerate}
-          disabled={loading || !description.trim()}
-          className="mt-4 w-full py-2.5 bg-stone-900 text-white text-sm font-medium rounded hover:bg-stone-800 disabled:opacity-50"
-        >
-          {loading ? "Generating workflow…" : "Generate Workflow"}
-        </button>
-      </div>
-
-      <div className="bg-white border border-stone-200 rounded p-4">
-        <h2 className="font-medium text-stone-900 mb-3">Generated Workflow</h2>
-        {!workflow ? (
-          <p className="text-sm text-stone-500 text-center mt-12">Your personalized workflow will appear here.</p>
-        ) : (
-          <>
-            <div className="mb-4">
-              <span className="text-[10px] uppercase tracking-wider text-stone-500">Case Type</span>
-              <p className="font-medium text-stone-900 capitalize">{workflow.case_type.replace(/_/g, " ")}</p>
-              <p className="text-sm text-stone-600 mt-1">{workflow.summary}</p>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-stone-500">Preparation Score:</span>
-                <div className="flex-1 h-2 bg-stone-200 rounded overflow-hidden">
-                  <div className="h-full bg-stone-900" style={{ width: `${workflow.prep_score}%` }} />
-                </div>
-                <span className="text-xs font-medium">{workflow.prep_score}%</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <p className="text-xs font-medium text-stone-700 uppercase tracking-wider">Steps</p>
-              {workflow.steps.map((s, i) => (
-                <div key={i} className="border border-stone-200 rounded p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-stone-900 text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {s.step}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-stone-900 text-sm">{s.title}</p>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          s.priority === "high" ? "bg-red-100 text-red-800" :
-                          s.priority === "medium" ? "bg-amber-100 text-amber-800" :
-                          "bg-stone-100 text-stone-700"
-                        }`}>{s.priority}</span>
-                      </div>
-                      <p className="text-xs text-stone-600 mt-1">{s.description}</p>
-                      {s.deadline_days && (
-                        <p className="text-xs text-stone-500 mt-1">⏱ Within {s.deadline_days} days</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-stone-700 uppercase tracking-wider mb-2">Checklist</p>
-              <ul className="space-y-1">
-                {workflow.checklist.map((c, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-stone-700">
-                    <input type="checkbox" className="mt-1" />
-                    <span>{c}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ===== Drafts Panel =====
-function DraftsPanel() {
-  const [templates, setTemplates] = useState<Record<string, DraftTemplate> | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  const [fields, setFields] = useState<Record<string, string>>({});
-  const [title, setTitle] = useState("");
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.listDraftTemplates().then(setTemplates).catch(console.error);
-    api.listDrafts().then(setDrafts).catch(console.error);
-  }, []);
-
-  const handleSelectTemplate = useCallback((key: string) => {
-    setSelectedTemplate(key);
-    setFields({});
-    setDraft(null);
-    setError(null);
-    if (templates && templates[key]) {
-      setTitle(templates[key].label + " — " + new Date().toLocaleDateString());
-    }
-  }, [templates]);
-
-  const handleGenerate = useCallback(async () => {
-    if (!selectedTemplate || !templates) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const newDraft = await api.createDraft(selectedTemplate, title, fields);
-      setDraft(newDraft);
-      const list = await api.listDrafts();
-      setDrafts(list);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedTemplate, title, fields, templates]);
-
-  const handleCopy = useCallback(() => {
-    if (draft) {
-      navigator.clipboard.writeText(draft.content);
-      alert("Draft copied to clipboard");
-    }
-  }, [draft]);
-
-  const handleDownload = useCallback(() => {
-    if (!draft) return;
-    const blob = new Blob([draft.content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${draft.draft_type}_${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [draft]);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Template picker + fields */}
-      <div className="lg:col-span-1 bg-white border border-stone-200 rounded p-4">
-        <h2 className="font-medium text-stone-900 mb-3">Choose Draft Type</h2>
-        {!templates ? (
-          <p className="text-sm text-stone-500">Loading templates…</p>
-        ) : (
-          <div className="space-y-1 mb-4">
-            {Object.entries(templates).map(([key, t]) => (
-              <button
-                key={key}
-                onClick={() => handleSelectTemplate(key)}
-                className={`w-full text-left p-2 rounded border text-sm ${
-                  selectedTemplate === key ? "border-stone-900 bg-stone-50" : "border-stone-200 hover:border-stone-400"
-                }`}
-              >
-                <p className="font-medium text-stone-900">{t.label}</p>
-                <p className="text-xs text-stone-500 mt-0.5">{t.description}</p>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {selectedTemplate && templates && (
-          <>
-            <label className="block text-xs font-medium text-stone-700 mb-1">Draft Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full mb-3 px-3 py-2 border border-stone-300 rounded text-sm"
-            />
-
-            {templates[selectedTemplate].fields.map((f) => (
-              <div key={f.name} className="mb-2">
-                <label className="block text-xs font-medium text-stone-700 mb-1">
-                  {f.label}{f.required && <span className="text-red-600 ml-0.5">*</span>}
-                </label>
-                {f.textarea ? (
-                  <textarea
-                    value={fields[f.name] || ""}
-                    onChange={(e) => setFields(prev => ({ ...prev, [f.name]: e.target.value }))}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-stone-300 rounded text-sm"
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={fields[f.name] || ""}
-                    onChange={(e) => setFields(prev => ({ ...prev, [f.name]: e.target.value }))}
-                    className="w-full px-3 py-2 border border-stone-300 rounded text-sm"
-                  />
-                )}
-              </div>
-            ))}
-
-            {error && <p className="text-sm text-red-700 mt-2">{error}</p>}
-
-            <button
-              onClick={handleGenerate}
-              disabled={loading || !title.trim()}
-              className="mt-3 w-full py-2 bg-stone-900 text-white text-sm rounded hover:bg-stone-800 disabled:opacity-50"
-            >
-              {loading ? "Generating…" : "Generate Draft"}
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Draft preview */}
-      <div className="lg:col-span-2 bg-white border border-stone-200 rounded p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium text-stone-900">Generated Draft</h2>
-          {draft && (
-            <div className="flex gap-2">
-              <button onClick={handleCopy} className="text-xs border border-stone-300 px-2 py-1 rounded hover:bg-stone-100">Copy</button>
-              <button onClick={handleDownload} className="text-xs border border-stone-300 px-2 py-1 rounded hover:bg-stone-100">Download</button>
-            </div>
-          )}
-        </div>
-        {!draft ? (
-          <p className="text-sm text-stone-500 text-center mt-12">Fill in the form and click Generate Draft.</p>
-        ) : (
-          <pre className="text-xs text-stone-800 whitespace-pre-wrap font-mono bg-stone-50 p-3 rounded max-h-[600px] overflow-y-auto">
-            {draft.content}
-          </pre>
-        )}
-
-        {drafts.length > 0 && (
-          <div className="mt-6">
-            <h3 className="font-medium text-stone-900 mb-2 text-sm">Previous Drafts</h3>
-            <div className="space-y-1">
-              {drafts.map(d => (
-                <button
-                  key={d.id}
-                  onClick={() => setDraft(d)}
-                  className="w-full text-left p-2 border border-stone-200 rounded text-sm hover:border-stone-400"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-stone-900">{d.title}</span>
-                    <span className="text-[10px] text-stone-500 capitalize">{d.draft_type.replace(/_/g, " ")}</span>
-                  </div>
-                  <p className="text-xs text-stone-500 mt-0.5">{new Date(d.created_at).toLocaleString()}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+function DraftsPanel() { const [templates, setTemplates] = useState<Record<string, DraftTemplate> | null>(null); const [selected, setSelected] = useState(""); const [fields, setFields] = useState<Record<string, string>>({}); const [title, setTitle] = useState(""); const [draft, setDraft] = useState<Draft | null>(null); const [saved, setSaved] = useState<Draft[]>([]); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null); const [copied, setCopied] = useState(false); useEffect(() => { api.listDraftTemplates().then(setTemplates).catch(e => setError(e.message)); api.listDrafts().then(setSaved).catch(() => undefined); }, []); const choose = (key: string) => { setSelected(key); setFields({}); setDraft(null); setTitle(templates?.[key] ? `${templates[key].label} — ${new Date().toLocaleDateString()}` : ""); }; const generate = async () => { if (!selected || !templates) return; setLoading(true); setError(null); try { const item = await api.createDraft(selected, title, fields); setDraft(item); setSaved(await api.listDrafts()); } catch (e) { setError(e instanceof Error ? e.message : "Draft generation failed"); } finally { setLoading(false); } }; const copy = async () => { if (!draft) return; await navigator.clipboard.writeText(draft.content); setCopied(true); setTimeout(() => setCopied(false), 1800); }; const download = () => { if (!draft) return; const url = URL.createObjectURL(new Blob([draft.content], { type: "text/plain;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = `${draft.draft_type}_${Date.now()}.txt`; link.click(); URL.revokeObjectURL(url); }; return <><SectionHeader icon={Clipboard} kicker="Document preparation" title="Create a careful first draft" description="Use a structured template to prepare information before an advocate reviews it." /><div className="grid gap-5 xl:grid-cols-[360px_1fr]"><Panel><div className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#829085]">Choose a template</div>{!templates ? <div className="skeleton" /> : <div className="space-y-2">{Object.entries(templates).map(([key, item]) => <button key={key} onClick={() => choose(key)} className={`template-card ${selected === key ? "template-card-active" : ""}`}><div className="flex items-start justify-between gap-3"><div><b className="block text-sm">{item.label}</b><span className="mt-1 block text-xs leading-relaxed text-[#829085]">{item.description}</span></div><ChevronRight size={16} className="mt-1 shrink-0" /></div></button>)}</div>}{selected && templates?.[selected] && <div className="mt-6 border-t border-[#e5e7df] pt-5"><Field label="Draft title"><input className="input" value={title} onChange={e => setTitle(e.target.value)} /></Field><div className="mt-4 space-y-3">{templates[selected].fields.map(field => <Field key={field.name} label={`${field.label}${field.required ? " *" : ""}`}>{field.textarea ? <textarea className="input min-h-24" value={fields[field.name] || ""} onChange={e => setFields(prev => ({ ...prev, [field.name]: e.target.value }))} /> : <input className="input" value={fields[field.name] || ""} onChange={e => setFields(prev => ({ ...prev, [field.name]: e.target.value }))} />}</Field>)}</div>{error && <div className="mt-4 text-xs text-[#9b4737]">{error}</div>}<button className="primary-button mt-5 w-full" disabled={loading || !title.trim()} onClick={generate}>{loading ? <><Loader2 size={16} className="animate-spin" /> Preparing…</> : <><FileText size={16} /> Generate first draft</>}</button></div>}</Panel><Panel className="min-h-[600px]"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9a7f3f]">Preview</p><h3 className="mt-1 font-serif text-2xl">{draft?.title || "Your draft"}</h3></div>{draft && <div className="flex gap-2"><button className="secondary-button" onClick={copy}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy"}</button><button className="secondary-button" onClick={download}><ArrowUpRight size={14} /> Download</button></div>}</div>{draft ? <pre className="max-h-[600px] overflow-auto rounded-2xl border border-[#e5e7df] bg-[#fbfaf6] p-5 font-mono text-xs leading-6 whitespace-pre-wrap text-[#435044]">{draft.content}</pre> : <EmptyState icon={FileText} title="No draft yet" body="Select a template, complete the fields, and your preliminary document will appear here." />}{saved.length > 0 && <div className="mt-8 border-t border-[#e5e7df] pt-5"><p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#829085]">Saved drafts</p><div className="grid gap-2 sm:grid-cols-2">{saved.map(item => <button key={item.id} onClick={() => setDraft(item)} className="rounded-xl border border-[#e5e7df] p-3 text-left transition hover:border-[#9da99b]"><b className="block truncate text-sm">{item.title}</b><span className="mt-1 block text-xs text-[#829085]">{item.draft_type.replaceAll("_", " ")}</span></button>)}</div></div>}</Panel></div></>; }

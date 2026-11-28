@@ -10,7 +10,7 @@ from loguru import logger
 from ..core.config import settings
 from .embed_service import embedding_service, vector_store
 from .legal_sources import load_registry
-from .llm_service import llm_service, LLMUnavailable
+from .llm_service import llm_service, LLMUnavailable, SYSTEM_PROMPT
 
 MIN_RELEVANCE_SCORE = 0.55
 
@@ -174,6 +174,7 @@ async def answer_question(question: str, history: list[dict[str, str]] | None = 
         answer = await llm_service.chat(
             recent_user_history + [{"role": "user", "content": question}],
             context=build_context_block(hits), max_new_tokens=600,
+            system_prompt=SYSTEM_PROMPT,
         )
     except LLMUnavailable:
         return {"answer": "[ANSWER UNAVAILABLE] The configured language model is temporarily unavailable. No legal answer is being presented.", "sources": [], "analysis_status": "unavailable_model"}

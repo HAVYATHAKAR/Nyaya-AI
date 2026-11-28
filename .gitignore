@@ -52,6 +52,7 @@ tests/
 backend/tests/*
 !backend/tests/test_api_routes.py
 !backend/tests/test_legal_sources.py
+!backend/tests/test_llm_service.py
 skills/
 examples/
 
