@@ -1,11 +1,9 @@
 /**
- * NyayaAI API client — calls FastAPI backend via Caddy gateway.
- *
- * All requests go to relative path `/api/...` with `XTransformPort=8000`
- * so Caddy forwards them to the Python FastAPI backend on port 8000.
+ * NyayaAI API client — same-origin /api by default (Caddy/reverse proxy),
+ * with an explicit backend origin available for local development.
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
 
 function apiUrl(path: string): string {
   return `${BACKEND_URL}${path}`;
@@ -89,11 +87,28 @@ export interface DocumentItem {
   analyzed_at: string | null;
 }
 
+export interface LegalCitation {
+  source_id: string;
+  title: string;
+  law_id: string;
+  section: string;
+  url: string;
+  jurisdiction: string;
+  reviewed_at: string;
+  effective_date: string | null;
+}
+
+export interface ChatStatus {
+  analysis_status: string;
+  message: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: string;
   content: string;
-  sources: any[];
+  sources: LegalCitation[];
+  analysis_status: string;
   created_at: string;
 }
 
@@ -180,6 +195,7 @@ export const api = {
     }),
 
   // Chat
+  chatStatus: () => request<ChatStatus>("/api/chat/status"),
   listChats: () => request<Chat[]>("/api/chat"),
   createChat: (title: string) =>
     request<Chat>("/api/chat", {

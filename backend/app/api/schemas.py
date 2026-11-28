@@ -1,6 +1,6 @@
 """Pydantic schemas for API request/response validation."""
 from typing import List, Optional, Any, Literal
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator, model_validator
 
 
@@ -77,18 +77,25 @@ class ChatMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=12000)
 
 
+class LegalCitation(BaseModel):
+    source_id: str
+    title: str
+    law_id: str
+    section: str
+    url: str
+    jurisdiction: str
+    reviewed_at: date
+    effective_date: Optional[date] = None
+
+
 class ChatMessageOut(BaseModel):
     id: str
     role: str
     content: str
-    sources: Optional[List[Any]]
+    sources: List[LegalCitation] = Field(default_factory=list)
+    analysis_status: str
     created_at: datetime
     model_config = {"from_attributes": True}
-
-    @computed_field
-    @property
-    def analysis_status(self) -> str:
-        return "unavailable" if self.content.startswith("[ANSWER UNAVAILABLE]") else "available"
 
 
 class ChatOut(BaseModel):
@@ -101,7 +108,8 @@ class ChatOut(BaseModel):
 
 class ChatAnswer(BaseModel):
     answer: str
-    sources: List[Any] = []
+    sources: List[LegalCitation] = Field(default_factory=list)
+    analysis_status: str = "unavailable_index"
 
 
 # ===== Workflow =====

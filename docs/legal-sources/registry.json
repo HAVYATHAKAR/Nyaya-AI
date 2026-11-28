@@ -1,0 +1,44 @@
+[
+  {
+    "source_id": "india-bns-2023",
+    "title": "The Bharatiya Nyaya Sanhita, 2023",
+    "jurisdiction": "India",
+    "law_id": "Act 45 of 2023 (BNS)",
+    "official_url": "https://indiacode.gov.in/server/api/core/bitstreams/8007a80e-259b-429d-9ca4-1a2f474b5000/content",
+    "effective_date": "2024-07-01",
+    "effective_date_scope": "Section 106(2) excluded per the official PDF footnote; source-wide effective date is not uniform for that provision.",
+    "retrieved_at": "2026-11-27T14:00:00Z",
+    "reviewed_at": null,
+    "review_status": "pending",
+    "content_hash": null,
+    "document_version_date": "2025-10-06"
+  },
+  {
+    "source_id": "india-bnss-2023",
+    "title": "The Bharatiya Nagarik Suraksha Sanhita, 2023",
+    "jurisdiction": "India",
+    "law_id": "Act 46 of 2023 (BNSS)",
+    "official_url": "https://indiacode.gov.in/server/api/core/bitstreams/73f93470-5f6a-4f0f-bc23-1309e32b9554/content",
+    "effective_date": "2024-07-01",
+    "effective_date_scope": "The official PDF footnote excludes the First Schedule entry relating to BNS section 106(2).",
+    "retrieved_at": "2026-11-27T14:00:00Z",
+    "reviewed_at": null,
+    "review_status": "pending",
+    "content_hash": null,
+    "document_version_date": "2025-10-06"
+  },
+  {
+    "source_id": "india-bsa-2023",
+    "title": "The Bharatiya Sakshya Adhiniyam, 2023",
+    "jurisdiction": "India",
+    "law_id": "Act 47 of 2023 (BSA)",
+    "official_url": "https://indiacode.gov.in/server/api/core/bitstreams/fa0f7526-d871-41f2-a644-2a42952211f5/content",
+    "effective_date": "2024-07-01",
+    "effective_date_scope": "Commencement per the official PDF footnote, S.O. 849(E), dated 23 February 2024.",
+    "retrieved_at": "2026-11-27T14:00:00Z",
+    "reviewed_at": null,
+    "review_status": "pending",
+    "content_hash": null,
+    "document_version_date": "2025-10-06"
+  }
+]

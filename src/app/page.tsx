@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from "react";
-import { api, type User, type DocumentItem, type Chat, type ChatMessage, type Workflow, type DraftTemplate, type Draft } from "@/lib/api";
+import { api, type User, type DocumentItem, type Chat, type ChatMessage, type ChatStatus, type Workflow, type DraftTemplate, type Draft } from "@/lib/api";
 
 type Tab = "documents" | "chat" | "workflow" | "drafts";
 
@@ -119,9 +119,6 @@ export default function Home() {
             </button>
           </form>
 
-          <p className="text-xs text-stone-400 text-center mt-6">
-            Demo: try <code className="bg-stone-100 px-1 py-0.5 rounded">demo@nyayaai.in</code> / <code className="bg-stone-100 px-1 py-0.5 rounded">demo123</code>
-          </p>
         </div>
       </div>
     );
@@ -423,6 +420,12 @@ function ChatPanel() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingChats, setLoadingChats] = useState(true);
+  const [chatStatus, setChatStatus] = useState<ChatStatus | null>(null);
+  const [chatStatusError, setChatStatusError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.chatStatus().then(setChatStatus).catch((e: Error) => setChatStatusError(e.message));
+  }, []);
 
   const refreshChats = useCallback(async () => {
     setLoadingChats(true);
@@ -549,19 +552,28 @@ function ChatPanel() {
           {messages.length === 0 ? (
             <div className="text-center text-stone-500 mt-12">
               <p className="text-sm">Ask a legal question to get started.</p>
-              <p className="text-xs mt-1">Example: "How do I file an RTI?" or "Which court handles consumer disputes?"</p>
             </div>
           ) : messages.map(m => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[80%] ${m.role === "user" ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-900"} rounded-lg p-3 text-sm whitespace-pre-wrap`}>
+                {m.role === "assistant" && m.analysis_status && m.analysis_status !== "available" && (
+                  <p className="mb-2 text-xs font-semibold text-amber-800" role="status">
+                    {m.analysis_status.replaceAll("_", " ")}
+                  </p>
+                )}
                 {m.content}
                 {m.sources && m.sources.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-stone-300 space-y-2">
-                    <p className="text-xs font-medium opacity-80">Sources:</p>
+                    <p className="text-xs font-medium opacity-80">Official references:</p>
                     {m.sources.map((s, i) => (
-                      <div key={i} className="text-xs bg-white/10 p-2 rounded">
-                        <p className="font-medium">{s.title}</p>
-                        <p className="opacity-70 mt-0.5">{s.source}</p>
+                      <div key={`${s.source_id}-${s.section}-${i}`} className="text-xs bg-white/10 p-2 rounded break-words">
+                        <p className="font-medium">{s.title}, section {s.section}</p>
+                        <p className="opacity-70 mt-0.5">{s.law_id} · {s.jurisdiction} · reviewed {s.reviewed_at}</p>
+                        {isIndiaCodeUrl(s.url) ? (
+                          <a className="mt-1 inline-block underline underline-offset-2" href={s.url} target="_blank" rel="noopener noreferrer">
+                            Open official source
+                          </a>
+                        ) : <p className="mt-1">Official source link unavailable</p>}
                       </div>
                     ))}
                   </div>
@@ -569,6 +581,15 @@ function ChatPanel() {
               </div>
             </div>
           ))}
+          {chatStatusError ? (
+            <p className="mx-4 mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+              Could not check legal Q&amp;A availability: {chatStatusError}
+            </p>
+          ) : chatStatus ? (
+            <p className={`mx-4 mt-3 rounded border p-3 text-sm ${chatStatus.analysis_status === "available" ? "border-green-200 bg-green-50 text-green-900" : "border-amber-200 bg-amber-50 text-amber-900"}`} role="status">
+              Legal Q&amp;A: {chatStatus.message}
+            </p>
+          ) : null}
           {sending && (
             <div className="flex justify-start">
               <div className="bg-stone-100 rounded-lg p-3 text-sm text-stone-500">
@@ -597,6 +618,15 @@ function ChatPanel() {
       </div>
     </div>
   );
+}
+
+function isIndiaCodeUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "indiacode.gov.in";
+  } catch {
+    return false;
+  }
 }
 
 // ===== Workflow Panel =====

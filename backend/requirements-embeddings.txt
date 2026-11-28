@@ -1,3 +1,5 @@
 # Optional real semantic model; legal Q&A still requires a verified, URL-cited corpus.
 -r requirements.txt
 sentence-transformers>=2.6.0
+qdrant-client>=1.9.0,<2.0.0
+PyMuPDF>=1.23.0
