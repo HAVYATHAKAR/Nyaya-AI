@@ -85,9 +85,8 @@ cd C:\path\to\nyayaai-source
 npm install
 # OR if you have bun: bun install
 
-# IMPORTANT — patch the API client to talk directly to FastAPI (skip the
-# sandbox-only Caddy proxy). Open src/lib/api.ts in your editor and
-# replace the apiUrl function (see snippet below).
+# The Next.js dev server proxies same-origin /api requests to 127.0.0.1:8000.
+# Override API_PROXY_TARGET if your backend is on a different host/port.
 
 # Run dev server
 npm run dev
@@ -102,30 +101,7 @@ npm install   # or: bun install
 npm run dev   # or: bun run dev
 ```
 
-### The one-line patch you MUST apply
-
-Open `src/lib/api.ts`. Find this block (around line 11):
-
-```typescript
-const BACKEND_PORT = "8000";
-
-function apiUrl(path: string): string {
-  const sep = path.includes("?") ? "&" : "?";
-  return `${path}${sep}XTransformPort=${BACKEND_PORT}`;
-}
-```
-
-Replace it with:
-
-```typescript
-const BACKEND_URL = "http://localhost:8000";
-
-function apiUrl(path: string): string {
-  return `${BACKEND_URL}${path}`;
-}
-```
-
-Save the file. The dev server will hot-reload automatically.
+Browser requests use relative `/api/...` paths. Next.js proxies those paths to the local FastAPI server during development. For a different backend, start Next.js with `API_PROXY_TARGET=http://127.0.0.1:8000` (set with `$env:API_PROXY_TARGET` in PowerShell). For a deployed frontend, configure the platform reverse proxy to route `/api/*` to FastAPI, or set `NEXT_PUBLIC_BACKEND_URL` to a browser-reachable HTTPS backend origin.
 
 ### Expected output
 
@@ -174,9 +150,9 @@ OCR_LANG=hi    # or: en, ta, te, mr, bn, gu, pa, kn
 
 ### Legal Q&A / retrieval status
 
-The backend does not currently connect to Qdrant and does not ship an authoritative legal corpus ingestion pipeline. Configuring Qdrant variables alone will not activate retrieval. The API returns an explicit insufficient-sources response until reviewed legal sources, citation URLs, jurisdiction/update metadata, and a real retrieval implementation are integrated.
+Legal Q&A is disabled by default: the three discovered India Code Acts are marked pending human review in `docs/legal-sources/registry.json`. Their official files state “as on 6 October 2025,” so later amendments have not been verified by this repository. Do not mark an entry reviewed unless the exact file, amendments and commencement scope have been checked by a qualified reviewer.
 
-Historical sample criminal-law text referencing the IPC has been removed from the served corpus; this change does not assert a legal correction. Consult authoritative, current sources before legal use.
+Install the optional persistent retrieval stack from `backend/` with `pip install -r requirements-embeddings.txt`. Development/test use Qdrant local disk at `QDRANT_LOCAL_PATH` (default `./data/qdrant`); production requires `QDRANT_URL` and `QDRANT_API_KEY`. Set `EMBEDDING_ENABLED=true` and `EMBED_MODEL` to load real sentence-transformer embeddings. Update the reviewed registry entry with a human review date and the exact PDF SHA-256, then run `python scripts/ingest_legal_sources.py`. Only India Code HTTPS bitstream endpoints are allowed; changed content requires new review and hash pinning. Details: `docs/legal-sources/README.md`. `GET /api/chat/status` reports the current gate state. A configured vector store alone does not enable Q&A.
 
 ---
 
@@ -221,9 +197,10 @@ pip install -r requirements.txt
 
 ### 5. Frontend shows `fetch failed` / `Network Error`
 
-You forgot the **apiUrl patch** in step 2. Without it, the frontend tries
-to talk to the Caddy gateway (which only exists in our sandbox). Apply
-the patch from step 2.
+Confirm FastAPI is listening on port 8000 and that Next.js started with
+`API_PROXY_TARGET=http://127.0.0.1:8000` if the backend is not at its default
+address. Browser calls use same-origin `/api/...` URLs and are proxied by
+Next.js in development.
 
 ### 6. `bcrypt password cannot be longer than 72 bytes`
 
@@ -237,7 +214,7 @@ Something else is using port 8000. Either kill that process, or use a
 different port:
 ```powershell
 python -m uvicorn app.main:app --port 8001 --reload
-# Then update BACKEND_URL in src/lib/api.ts to http://localhost:8001
+# Start Next with API_PROXY_TARGET=http://127.0.0.1:8001
 ```
 
 ### 8. CORS errors in browser console

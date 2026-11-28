@@ -1,7 +1,6 @@
 """Draft generator: Jinja2 templates for common Indian legal documents."""
 from pathlib import Path
 from typing import Dict, Any
-from html import escape
 from loguru import logger
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -143,9 +142,8 @@ def generate_draft(template_key: str, fields: Dict[str, Any]) -> str:
             else:
                 final_fields[f["name"]] = ""
         else:
-            # These are plain-text templates; HTML-escape user data before it is
-            # returned to clients that might render the result in an HTML view.
-            final_fields[f["name"]] = escape(val, quote=True)
+            # Drafts are stored as plain text; web clients must render them as text nodes.
+            final_fields[f["name"]] = val
 
     rendered = template.render(**final_fields)
 

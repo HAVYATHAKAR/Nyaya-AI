@@ -8,8 +8,7 @@ from loguru import logger
 from .core.config import settings
 from .db.session import init_db
 from .api import auth, documents, chat, tools
-from .services.rag_service import seed_knowledge_base
-from .services.embed_service import embedding_service
+from .services.rag_service import retrieval_status
 
 
 class UploadLimitMiddleware:
@@ -68,11 +67,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.app_name} backend...")
     init_db()
-    try:
-        if embedding_service.available:
-            seed_knowledge_base()
-    except Exception as e:
-        logger.warning("KB seeding skipped ({})", type(e).__name__)
+    # The legal corpus is never seeded from sample text or fetched at startup.
+    # Reviewed sources are ingested explicitly with backend/scripts/ingest_legal_sources.py.
     logger.info("Startup complete.")
     yield
     # Shutdown
@@ -121,7 +117,7 @@ async def health():
         "version": "0.1.0",
         "ocr_lang": settings.ocr_lang,
         "llm_model": settings.hf_model,
-        "semantic_retrieval": "unavailable_no_verified_corpus",
+        "semantic_retrieval": retrieval_status(),
         "llm": "configured" if settings.hf_token else "unavailable_not_configured",
     }
 

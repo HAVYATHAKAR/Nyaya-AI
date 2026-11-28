@@ -48,6 +48,10 @@ Thumbs.db
 .zscripts/
 mini-services-dist/
 tests/
+!backend/tests/
+backend/tests/*
+!backend/tests/test_api_routes.py
+!backend/tests/test_legal_sources.py
 skills/
 examples/
 

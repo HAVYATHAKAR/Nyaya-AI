@@ -87,7 +87,7 @@ async def test_no_sources_returns_explicit_insufficient_sources(monkeypatch):
     async def empty(*args, **kwargs): return []
     monkeypatch.setattr(rag_service, "retrieve_context", empty)
     result = await rag_service.answer_question("What is the limitation period?")
-    assert result["analysis_status"] == "unavailable_insufficient_sources"
+    assert result["analysis_status"] == "unavailable_sources"
     assert result["sources"] == []
     assert "UNAVAILABLE" in result["answer"]
 
@@ -101,9 +101,10 @@ async def test_workflow_fallback_is_labeled(monkeypatch):
     assert "not legal deadlines" in result["deadline_notice"]
 
 
-def test_draft_values_escaped_and_missing_fields_remain_explicit():
+def test_draft_values_remain_plain_text_and_missing_fields_remain_explicit():
     generated = generate_draft("affidavit", {"deponent_name": "<script>alert(1)</script>"})
-    assert "&lt;script&gt;" in generated
+    assert "<script>alert(1)</script>" in generated
+    assert "&lt;script&gt;" not in generated
     assert "<<FILL:" in generated
     assert "preliminary document only" in generated
 
@@ -124,8 +125,9 @@ def test_date_fallback_is_uncertain_not_legal_deadline():
 def test_chat_response_exposes_unavailable_status():
     from app.api.schemas import ChatMessageOut
     response = ChatMessageOut(id="m1", role="assistant", content="[ANSWER UNAVAILABLE] no sources",
-                              sources=[], created_at=__import__("datetime").datetime.now())
-    assert response.analysis_status == "unavailable"
+                              sources=[], analysis_status="unavailable_sources",
+                              created_at=__import__("datetime").datetime.now())
+    assert response.analysis_status == "unavailable_sources"
 
 
 def test_other_user_cannot_read_document():
@@ -217,16 +219,16 @@ async def test_malformed_model_analysis_is_unavailable(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_retrieval_drops_passages_without_authoritative_url(monkeypatch):
+async def test_retrieval_rejects_passages_not_in_reviewed_registry(monkeypatch):
     monkeypatch.setattr(settings, "embedding_enabled", True)
     monkeypatch.setattr(rag_service.embedding_service, "encode_one", lambda query: [0.1])
+    monkeypatch.setattr(rag_service, "load_registry", lambda: [])
     monkeypatch.setattr(rag_service.vector_store, "search", lambda *args, **kwargs: [
-        {"title": "Uncited item", "text": "content", "source": "old corpus"},
-        {"title": "Cited item", "text": "content", "source": "authority", "source_url": "https://authority.example/doc", "jurisdiction": "India", "reviewed_at": "2026-01-01", "score": 0.8},
+        {"title": "Cited item", "text": "content", "source_url": "https://indiacode.gov.in/act/example",
+         "jurisdiction": "India", "reviewed_at": "2026-11-27", "score": 0.8},
     ])
     results = await rag_service.retrieve_context("query")
-    assert len(results) == 1
-    assert results[0]["source_url"] == "https://authority.example/doc"
+    assert results == []
 
 
 def test_production_secret_must_have_high_entropy():

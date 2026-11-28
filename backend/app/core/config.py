@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection: str = "nyayaai_legal_kb"
+    qdrant_local_path: str = "./data/qdrant"
+    legal_source_max_review_age_days: int = 180
 
     # Storage
     upload_dir: str = "./data/uploads"

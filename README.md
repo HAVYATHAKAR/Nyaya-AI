@@ -1,8 +1,7 @@
 # NyayaAI — AI-Powered Legal Intelligence & Workflow Platform
 
-> Bridging citizens and justice through AI. A legal document and workflow platform.
-> Model-backed analysis depends on external configuration; legal Q&A remains disabled
-> until an authoritative, URL-cited source corpus is integrated.
+> Legal document and workflow platform. Legal Q&A is disabled until official sources
+> have a dated human review and are ingested into a persistent, citation-backed index.
 
 ![Status](https://img.shields.io/badge/status-MVP-yellow)
 ![Stack](https://img.shields.io/badge/stack-Next.js%20%2B%20FastAPI%20%2B%20Python-blue)
@@ -34,11 +33,11 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 
 1. **Document Intelligence** — Upload supported PDF/image/TXT files. OCR and model-backed analysis run only when their dependencies and services are available; failures are surfaced as unavailable/failed rather than fabricated summaries. Regex dates are explicitly uncertain text matches.
 
-2. **AI Legal Assistant** — The chat API only generates an answer when it has relevant, URL-cited legal references. The repository currently has no reviewed corpus or ingestion pipeline, so it returns an explicit insufficient-sources status instead of unsupported legal advice. Historical criminal-law sample text referencing the IPC has been excluded from runtime; no legal correction is asserted here pending authoritative, dated sources.
+2. **AI Legal Assistant** — Q&A uses only relevant official legal references with review metadata. The India Code sources discovered so far are pending human review, so the default deployment reports Q&A unavailable. See [`docs/legal-sources/README.md`](docs/legal-sources/README.md).
 
 3. **Workflow Generator** — The API returns validated model output when available, otherwise a clearly labeled template fallback; all timeframes are planning estimates, not legal deadlines.
 
-4. **Draft Generator** — Render five text templates. Missing fields remain explicit placeholders, input values are escaped, and each draft carries a preliminary-only advocate-review disclaimer.
+4. **Draft Generator** — Render five plain-text templates. Missing fields remain explicit placeholders, original text values are preserved, and each draft carries a preliminary-only advocate-review disclaimer. The UI displays draft text as text, not HTML.
 
 ---
 
@@ -70,8 +69,8 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 └──────────────────────────┘   │  Services:                        │
                                 │   - OCR (PaddleOCR)              │
                                 │   - LLM (HuggingFace Inference, optional token) │
-                                │   - Optional embeddings (not active without reviewed corpus) │
-                                │   - Local vector index (unused until reviewed corpus exists) │
+│   - Real sentence-transformer embeddings (optional)          │
+│   - Persistent Qdrant local/server vector store              │
                                 │   - Drafts (Jinja2 templates)    │
                                 │                                   │
                                 │  Storage:                         │
@@ -89,8 +88,8 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 | Auth | JWT (python-jose) + bcrypt | Email + password |
 | OCR | PaddleOCR (optional `requirements-ocr.txt`) | No filename stub; reports unavailable |
 | LLM | HuggingFace Inference API (free tier) | Llama-3 / Mistral / Gemma |
-| Embeddings | Optional sentence-transformers (`requirements-embeddings.txt`) | Disabled; no hash pseudo-embeddings |
-| Vector store | Process-local index | Qdrant configuration is not wired into runtime |
+| Embeddings | Optional sentence-transformers (`requirements-embeddings.txt`) | Real vectors only |
+| Vector store | Qdrant | Persistent local path in dev/test; server + API key in production; no RAM fallback |
 | Drafts | Jinja2 templates | 5 templates shipped |
 | DB | SQLite (dev) / PostgreSQL (prod) | Easy swap via env var |
 
@@ -106,12 +105,14 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 - OCR text remains available when OCR succeeds but model analysis is unavailable
 - Background processing reports status through the document endpoint
 
-### AI Legal Assistant (currently source-gated)
+### AI Legal Assistant (review-gated)
 - Chat interface with conversation history
-- Hash embeddings and the historical unverified sample KB are no longer used or served
-- Current API returns an explicit insufficient-sources result until a reviewed URL-cited corpus is integrated
-- No confident answer is generated from missing or unverified legal references
-- Retrieved passages in any future corpus must be reference data, not model instructions
+- Real embeddings and persistent Qdrant storage; no process-only index
+- Ingestion is explicit and accepts only reviewed records from the India Code allowlist
+- Source hashes are pinned at human review; changes invalidate ingestion/retrieval pending another review
+- Retrieval checks jurisdiction, effective date when present, review freshness and relevance
+- `/api/chat/status` and each chat response expose structured availability state; citations contain statute, section, official URL, jurisdiction and review date
+- Unsupported or uncited model output is withheld; retrieved text is treated as untrusted reference data
 
 ### Workflow Generator
 - Free-text description → structured workflow
@@ -123,6 +124,7 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 ### Draft Generator
 - 5 templates shipped: RTI Application, Consumer Complaint, Legal Notice, Affidavit, Rental Agreement
 - Dynamic form fields per template
+- Drafts are stored as plain text without HTML entity transformations; browser rendering uses text nodes
 - Watermarked as "preliminary — review by advocate"
 - Copy to clipboard + download as .txt
 - Saved drafts list for re-use
@@ -189,7 +191,8 @@ Full interactive docs available at `http://localhost:8000/docs` once backend is 
 | GET | `/api/chat` | List chats |
 | POST | `/api/chat` | Create chat |
 | GET | `/api/chat/{id}` | Get chat with messages |
-| POST | `/api/chat/message` | Send message → AI answer |
+| GET | `/api/chat/status` | Legal source/model/index availability |
+| POST | `/api/chat/message` | Send message → grounded answer or explicit unavailable state |
 | DELETE | `/api/chat/{id}` | Delete chat |
 | POST | `/api/tools/workflow` | Generate workflow |
 | GET | `/api/tools/drafts/templates` | List draft templates |
@@ -207,7 +210,13 @@ Backend reads from `backend/.env`. Key settings:
 HF_TOKEN=hf_your_token_here
 HF_MODEL=meta-llama/Meta-Llama-3-8B-Instruct
 
-# Retained for compatibility only; the current runtime does not connect to Qdrant
+# Optional real semantic retrieval; Q&A remains disabled until source review and ingestion
+EMBEDDING_ENABLED=false
+EMBED_MODEL=BAAI/bge-small-en-v1.5
+QDRANT_COLLECTION=nyayaai_legal_kb
+QDRANT_LOCAL_PATH=./data/qdrant  # dev/test persistent path
+# Production: QDRANT_URL=https://... and QDRANT_API_KEY=...
+LEGAL_SOURCE_MAX_REVIEW_AGE_DAYS=180
 
 # Production database (SQLite works for dev)
 DATABASE_URL=postgresql://user:pass@host:5432/nyayaai
@@ -219,7 +228,7 @@ JWT_SECRET=generate-a-unique-random-secret-at-least-32-characters
 OCR_LANG=en  # hi, ta, te, mr, bn, gu, pa, kn also supported
 ```
 
-Generate `JWT_SECRET` with a secure random generator (at least 32 characters) for production; known placeholders and weak repeated-character secrets are rejected. Set `CORS_ORIGINS` to exact origins, as a JSON array. Without `HF_TOKEN`, model-backed analysis is explicitly unavailable. OCR initialization failures and unreadable/empty OCR are reported as failed document processing; the filename is never treated as extracted text. Semantic retrieval is disabled by default, and the historical bundled legal sample corpus (including an IPC-era criminal-law passage) is not served. Qdrant variables are retained for compatibility but are not used by the current runtime. The current repository has no legal-corpus ingestion pipeline, so Q&A remains unavailable even if an embedding model is configured. A future corpus must be authoritative, reviewed, and include source URLs, jurisdiction, and update metadata before Q&A can be enabled. OCR packages are isolated in `backend/requirements-ocr.txt`; PDF OCR additionally requires system Poppler tools. Embedding packages are isolated in `backend/requirements-embeddings.txt`. `email-validator` is included for Pydantic `EmailStr`, and `psycopg[binary]` supports PostgreSQL URLs.
+Generate `JWT_SECRET` with a secure random generator (at least 32 characters) for production; known placeholders and weak repeated-character secrets are rejected. Set `CORS_ORIGINS` to exact origins, as a JSON array. Without `HF_TOKEN`, model-backed workflows/document analysis are unavailable. OCR initialization failures and unreadable/empty OCR are reported as failed document processing; the filename is never treated as extracted text. Legal Q&A starts disabled because the registry sources are pending review. A reviewer must pin the exact official PDF hash, review date and currentness before running the ingestion command described in [`docs/legal-sources/README.md`](docs/legal-sources/README.md). Local Qdrant data is persisted at `QDRANT_LOCAL_PATH`; production requires `QDRANT_URL` and `QDRANT_API_KEY`. The app does not fetch statutes at startup and never falls back to process memory. OCR packages are isolated in `backend/requirements-ocr.txt`; PDF OCR additionally requires system Poppler tools. Embeddings, Qdrant and PDF text extraction packages are isolated in `backend/requirements-embeddings.txt`.
 
 ---
 

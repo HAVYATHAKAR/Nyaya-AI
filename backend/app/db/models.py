@@ -79,6 +79,7 @@ class ChatMessage(Base):
     role = Column(String, nullable=False)  # user | assistant
     content = Column(Text, nullable=False)
     sources = Column(JSON, nullable=True)  # list of {title, url, snippet}
+    analysis_status = Column(String(50), nullable=False, default="not_applicable", server_default="not_applicable")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     chat = relationship("Chat", back_populates="messages")

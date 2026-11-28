@@ -9,10 +9,24 @@ from ..db.models import User, Chat, ChatMessage
 from .schemas import (
     ChatCreate, ChatOut, ChatMessageCreate, ChatMessageOut, ChatAnswer
 )
-from ..services.rag_service import answer_question
+from ..services.rag_service import answer_question, retrieval_status
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+@router.get("/status")
+def chat_status():
+    status = retrieval_status()
+    messages = {
+        "available": "Reviewed legal sources are indexed and available for retrieval.",
+        "unavailable_sources": "Legal Q&A is disabled until sources have completed dated review.",
+        "unavailable_model": "The configured legal embedding model is unavailable.",
+        "unavailable_storage": "Persistent legal-source storage is not configured.",
+        "unavailable_empty_index": "No reviewed legal sources are currently indexed.",
+        "unavailable_index": "The legal source index is unavailable or incompatible.",
+    }
+    return {"analysis_status": status, "message": messages.get(status, "Legal Q&A is unavailable.")}
 
 
 @router.get("", response_model=list[ChatOut])
@@ -72,7 +86,8 @@ async def send_message(
         raise HTTPException(404, "Chat not found")
 
     # Save user message
-    user_msg = ChatMessage(chat_id=chat.id, role="user", content=payload.content)
+    user_msg = ChatMessage(chat_id=chat.id, role="user", content=payload.content,
+                           analysis_status="not_applicable", sources=[])
     db.add(user_msg)
     db.commit()
     db.refresh(user_msg)
@@ -92,6 +107,7 @@ async def send_message(
         role="assistant",
         content=result["answer"],
         sources=result.get("sources", []),
+        analysis_status=result.get("analysis_status", "unavailable_index"),
     )
     db.add(ai_msg)
     db.commit()
