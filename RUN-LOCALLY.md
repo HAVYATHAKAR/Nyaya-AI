@@ -125,16 +125,17 @@ You'll see 4 tabs:
 
 ## 4. (Optional) Enable real AI
 
-### Live LLM via HuggingFace (free)
+### Live model-backed features via Hugging Face
 
 1. Sign up at https://huggingface.co
-2. Profile → Settings → **Access Tokens** → Create new token (type: Read, free)
+2. Profile → Settings → **Access Tokens** → Create a token that can access Inference Providers. Provider usage may require credits or billing.
 3. Edit `backend/.env`:
    ```
    HF_TOKEN=hf_your_token_here
-   HF_MODEL=mistralai/Mistral-7B-Instruct-v0.3
+   HF_MODEL=meta-llama/Llama-3.1-8B-Instruct
+   HF_API_BASE_URL=https://router.huggingface.co/v1
    ```
-4. Stop the backend (Ctrl+C) and restart it. Model-backed workflows/document analysis can then call the configured provider; legal Q&A remains disabled without a verified source corpus.
+4. Confirm the selected model has an enabled Inference Provider for the account. Stop the backend (Ctrl+C) and restart it. Model-backed workflows/document analysis can then call the provider; legal Q&A remains disabled without a reviewed legal corpus and configured persistent index.
 
 ### Real OCR (optional, ~500 MB)
 

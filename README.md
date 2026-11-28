@@ -87,7 +87,7 @@ The platform does NOT replace lawyers — it acts as an intelligent legal compan
 | Backend | FastAPI (Python 3.12), SQLAlchemy, Pydantic v2 | Async, modular monolith |
 | Auth | JWT (python-jose) + bcrypt | Email + password |
 | OCR | PaddleOCR (optional `requirements-ocr.txt`) | No filename stub; reports unavailable |
-| LLM | HuggingFace Inference API (free tier) | Llama-3 / Mistral / Gemma |
+| LLM | Hugging Face Inference Providers | OpenAI-compatible chat completions; model/provider availability depends on the configured account |
 | Embeddings | Optional sentence-transformers (`requirements-embeddings.txt`) | Real vectors only |
 | Vector store | Qdrant | Persistent local path in dev/test; server + API key in production; no RAM fallback |
 | Drafts | Jinja2 templates | 5 templates shipped |
@@ -206,9 +206,10 @@ Full interactive docs available at `http://localhost:8000/docs` once backend is 
 Backend reads from `backend/.env`. Key settings:
 
 ```bash
-# Required for live LLM answers (free at huggingface.co)
+# Required for live model-backed workflows and document analysis
 HF_TOKEN=hf_your_token_here
-HF_MODEL=meta-llama/Meta-Llama-3-8B-Instruct
+HF_MODEL=meta-llama/Llama-3.1-8B-Instruct
+HF_API_BASE_URL=https://router.huggingface.co/v1
 
 # Optional real semantic retrieval; Q&A remains disabled until source review and ingestion
 EMBEDDING_ENABLED=false
@@ -228,7 +229,7 @@ JWT_SECRET=generate-a-unique-random-secret-at-least-32-characters
 OCR_LANG=en  # hi, ta, te, mr, bn, gu, pa, kn also supported
 ```
 
-Generate `JWT_SECRET` with a secure random generator (at least 32 characters) for production; known placeholders and weak repeated-character secrets are rejected. Set `CORS_ORIGINS` to exact origins, as a JSON array. Without `HF_TOKEN`, model-backed workflows/document analysis are unavailable. OCR initialization failures and unreadable/empty OCR are reported as failed document processing; the filename is never treated as extracted text. Legal Q&A starts disabled because the registry sources are pending review. A reviewer must pin the exact official PDF hash, review date and currentness before running the ingestion command described in [`docs/legal-sources/README.md`](docs/legal-sources/README.md). Local Qdrant data is persisted at `QDRANT_LOCAL_PATH`; production requires `QDRANT_URL` and `QDRANT_API_KEY`. The app does not fetch statutes at startup and never falls back to process memory. OCR packages are isolated in `backend/requirements-ocr.txt`; PDF OCR additionally requires system Poppler tools. Embeddings, Qdrant and PDF text extraction packages are isolated in `backend/requirements-embeddings.txt`.
+For production, set `APP_ENV=production`, `APP_DEBUG=false`, a high-entropy `JWT_SECRET` (at least 32 characters), and `CORS_ORIGINS` to a JSON array of exact origins. Startup rejects weak production secrets, wildcard CORS, and debug mode. Without `HF_TOKEN`, model-backed workflows and document analysis are unavailable. AI uses the Hugging Face chat-completions router at `HF_API_BASE_URL`; choose an `HF_MODEL` that currently has an enabled Inference Provider for the account, and check any provider credits or billing requirements. OCR initialization failures and unreadable/empty OCR are reported as failed document processing; the filename is never treated as extracted text. Legal Q&A starts disabled because the registry sources are pending review. A qualified reviewer must pin the exact official PDF hash, review date and currentness before running the ingestion command described in [`docs/legal-sources/README.md`](docs/legal-sources/README.md). Local Qdrant data is persisted at `QDRANT_LOCAL_PATH`; production requires `QDRANT_URL` and `QDRANT_API_KEY` for legal retrieval. Without a reviewed corpus and persistent index, Q&A stays unavailable. The app does not fetch statutes at startup and never falls back to process memory. OCR packages are isolated in `backend/requirements-ocr.txt`; PDF OCR additionally requires system Poppler tools. Embeddings, Qdrant and PDF text extraction packages are isolated in `backend/requirements-embeddings.txt`.
 
 ---
 
@@ -241,8 +242,9 @@ Generate `JWT_SECRET` with a secure random generator (at least 32 characters) fo
 2. New Web Service on Render → connect repo
 3. Build command: `pip install -r backend/requirements.txt`
 4. Start command: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Add environment variables as required: strong JWT_SECRET and exact CORS_ORIGINS for production; HF_TOKEN enables model calls; Qdrant is not used by this backend
+5. Set `APP_ENV=production`, `APP_DEBUG=false`, a strong `JWT_SECRET`, and exact `CORS_ORIGINS`; set `HF_TOKEN` to enable model-backed workflows and document analysis
 6. Add Postgres database (free tier) → set DATABASE_URL
+7. For legal Q&A, install `backend/requirements-embeddings.txt`, configure production Qdrant (`QDRANT_URL` and `QDRANT_API_KEY`), then ingest only sources that have completed the review process. Q&A remains unavailable until this is complete.
 
 #### Frontend (Next.js on Render or Vercel)
 1. Push repo to GitHub
@@ -280,7 +282,7 @@ deploys to Vercel or any Next.js-compatible host.
 │   │   │   └── schemas.py         # Pydantic schemas
 │   │   ├── services/
 │   │   │   ├── ocr_service.py     # PaddleOCR wrapper
-│   │   │   ├── llm_service.py     # HuggingFace Inference API
+│   │   │   ├── llm_service.py     # Hugging Face chat-completions client
 │   │   │   ├── embed_service.py   # Embeddings + vector store
 │   │   │   ├── rag_service.py     # RAG + KB seeding
 │   │   │   ├── doc_intelligence.py

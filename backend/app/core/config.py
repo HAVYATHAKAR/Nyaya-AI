@@ -1,9 +1,9 @@
 """Application configuration loaded from environment variables."""
 import json
 import math
-import os
 from pathlib import Path
 from typing import List
+from urllib.parse import urlsplit
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,6 +34,15 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must use sqlite or PostgreSQL with psycopg")
         return value
 
+    @field_validator("hf_api_base_url")
+    @classmethod
+    def validate_hf_api_base_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        parsed = urlsplit(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("HF_API_BASE_URL must be an absolute HTTP or HTTPS URL")
+        return normalized
+
     # JWT
     jwt_secret: str = "change_me_in_production_please_use_a_long_random_string"
     jwt_algorithm: str = "HS256"
@@ -48,7 +57,8 @@ class Settings(BaseSettings):
 
     # HuggingFace
     hf_token: str = ""
-    hf_model: str = "meta-llama/Meta-Llama-3-8B-Instruct"
+    hf_model: str = "meta-llama/Llama-3.1-8B-Instruct"
+    hf_api_base_url: str = "https://router.huggingface.co/v1"
 
     # Embeddings
     embed_model: str = "BAAI/bge-small-en-v1.5"
@@ -79,6 +89,10 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must be a high-entropy, non-placeholder secret of at least 32 characters outside development")
             if "*" in self.cors_origins_list:
                 raise ValueError("CORS_ORIGINS cannot contain '*' outside development")
+            if self.app_debug:
+                raise ValueError("APP_DEBUG must be false outside development")
+            if urlsplit(self.hf_api_base_url).scheme != "https":
+                raise ValueError("HF_API_BASE_URL must use HTTPS outside development")
         if self.max_upload_mb < 1:
             raise ValueError("MAX_UPLOAD_MB must be at least 1")
         return self
